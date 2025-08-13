@@ -62,18 +62,28 @@ intune-remediation-scripts/
 │   ├── conditional-access/
 │   └── security-baselines/
 ├── templates/
-│   ├── script-templates/
-│   ├── json-configurations/
-│   └── powershell-modules/
+│   ├── detection-template.ps1
+│   ├── remediation-template.ps1
+│   └── configuration-template.json
+├── tests/
+│   ├── validation-scripts/
+│   ├── unit-tests/
+│   └── integration-tests/
 ├── docs/
 │   ├── deployment-guide.md
 │   ├── script-development.md
 │   ├── testing-procedures.md
 │   └── troubleshooting.md
-├── tests/
-│   ├── unit-tests/
-│   ├── integration-tests/
-│   └── validation-scripts/
+├── examples/
+│   ├── basic-scenarios/
+│   ├── advanced-configurations/
+│   └── custom-implementations/
+├── utilities/
+│   ├── logging/
+│   ├── error-handling/
+│   └── reporting/
+├── CONTRIBUTING.md
+├── LICENSE
 └── README.md
 ```
 
@@ -81,80 +91,138 @@ intune-remediation-scripts/
 
 ### Prerequisites
 
-- Microsoft Intune subscription with appropriate licensing
-- Azure AD tenant with device management permissions
-- PowerShell 5.1 or later (PowerShell 7.x recommended)
-- Intune Administrator or Global Administrator role
+- Microsoft Intune subscription
 - Windows 10/11 devices enrolled in Intune
+- PowerShell 5.1 or later
+- Administrative privileges for script deployment
+- Understanding of Intune remediation framework
 
-### Deployment Steps
+### Basic Usage
 
-1. **Download Scripts**
-   ```powershell
+1. **Clone the repository**:
+   ```bash
    git clone https://github.com/a-ariff/intune-remediation-scripts.git
    cd intune-remediation-scripts
    ```
 
-2. **Review and Customize**
+2. **Select appropriate scripts**:
+   - Browse the `detection-scripts/` folder for detection logic
+   - Find corresponding remediation in `remediation-scripts/`
+   - Review script documentation and parameters
+
+3. **Test locally** (optional but recommended):
    ```powershell
-   # Review detection script
-   Get-Content detection-scripts/compliance/bitlocker-detection.ps1
+   # Test detection script
+   .\detection-scripts\compliance\bitlocker-detection.ps1
    
-   # Review remediation script
-   Get-Content remediation-scripts/compliance/enable-bitlocker.ps1
+   # Test remediation script (with caution)
+   .\remediation-scripts\compliance\enable-bitlocker.ps1
    ```
 
-3. **Deploy via Intune**
-   - Navigate to Microsoft Endpoint Manager admin center
-   - Go to **Devices** > **Scripts and remediations** > **Remediation**
-   - Create new remediation package with detection and remediation scripts
-   - Assign to appropriate device groups
+4. **Deploy via Intune**:
+   - Upload detection and remediation scripts to Intune
+   - Configure assignment groups and settings
+   - Monitor execution and results
 
 ## Script Categories
 
-### Compliance & Security
-- **BitLocker Encryption**: Detect and enable BitLocker on corporate devices
-- **Windows Defender**: Ensure antivirus is enabled and updated
-- **Firewall Configuration**: Validate and configure Windows Firewall
-- **UAC Settings**: Maintain appropriate User Account Control levels
-- **Certificate Management**: Validate and update expired certificates
+### 🔒 Compliance & Security
 
-### Performance & Maintenance
-- **Disk Cleanup**: Remove temporary files and system cache
-- **Startup Optimization**: Manage startup programs for better boot times
-- **Memory Management**: Detect and resolve memory leaks
-- **Registry Cleanup**: Safe registry maintenance and optimization
-- **Service Management**: Ensure critical services are running properly
+| Script | Detection | Remediation | Description |
+|--------|-----------|-------------|-------------|
+| BitLocker | `bitlocker-detection.ps1` | `enable-bitlocker.ps1` | Ensures BitLocker encryption is enabled |
+| Windows Defender | `defender-status-check.ps1` | `configure-defender.ps1` | Configures and enables Windows Defender |
+| Windows Firewall | `firewall-status-detection.ps1` | `enable-firewall.ps1` | Ensures Windows Firewall is properly configured |
+| UAC Settings | `uac-status-check.ps1` | `configure-uac.ps1` | Configures User Account Control settings |
+| Windows Updates | `windows-update-detection.ps1` | `install-windows-updates.ps1` | Manages Windows Update installation |
+| Certificate Validation | `certificate-validation.ps1` | `update-certificates.ps1` | Validates and updates system certificates |
 
-### Software Management
-- **Application Installation**: Deploy required business applications
-- **Update Management**: Automate software updates and patches
-- **Bloatware Removal**: Remove unwanted pre-installed software
-- **License Compliance**: Track and manage software licensing
+### ⚡ Performance Optimization
 
-### Network & Connectivity
-- **DNS Configuration**: Validate and fix DNS settings
-- **Proxy Settings**: Configure corporate proxy settings
-- **VPN Connectivity**: Troubleshoot VPN connection issues
-- **Network Adapter**: Reset and reconfigure network adapters
+| Script | Detection | Remediation | Description |
+|--------|-----------|-------------|-------------|
+| Disk Space | `disk-space-check.ps1` | `cleanup-temp-files.ps1` | Monitors and cleans up disk space |
+| Memory Usage | `memory-usage-detection.ps1` | `optimize-memory.ps1` | Detects and optimizes memory usage |
+| Startup Programs | `startup-programs-check.ps1` | `optimize-startup.ps1` | Manages startup program configuration |
+| Disk Defragmentation | `fragmentation-check.ps1` | `defragment-drives.ps1` | Schedules and performs disk defragmentation |
 
-## Best Practices
+### 📦 Software Management
 
-### Script Development
-- Always include proper error handling and logging
-- Test scripts in a lab environment before production deployment
-- Use PowerShell best practices and approved verbs
-- Include detailed comments and documentation
-- Implement rollback mechanisms where applicable
+| Script | Detection | Remediation | Description |
+|--------|-----------|-------------|-------------|
+| Required Applications | `required-apps-check.ps1` | `install-required-apps.ps1` | Ensures critical applications are installed |
+| Software Updates | `outdated-software-detection.ps1` | `update-software.ps1` | Detects and updates outdated software |
+| Bloatware Removal | `bloatware-detection.ps1` | `remove-bloatware.ps1` | Identifies and removes unwanted software |
 
-### Security Considerations
-- Follow principle of least privilege
+## Configuration
+
+### Script Parameters
+
+Most scripts support customizable parameters for different environments:
+
+```powershell
+# Example: BitLocker detection with custom parameters
+.\detection-scripts\compliance\bitlocker-detection.ps1 -CheckAllDrives $true -RequireTPM $false
+
+# Example: Disk cleanup with size threshold
+.\remediation-scripts\performance\cleanup-temp-files.ps1 -ThresholdGB 10 -IncludeRecycleBin $true
+```
+
+### Environment Variables
+
+Set common configuration through environment variables:
+
+```powershell
+# Set logging level
+$env:INTUNE_SCRIPT_LOG_LEVEL = "Verbose"
+
+# Set custom log path
+$env:INTUNE_SCRIPT_LOG_PATH = "C:\Logs\IntuneRemediation"
+
+# Enable detailed reporting
+$env:INTUNE_SCRIPT_DETAILED_REPORTING = "true"
+```
+
+## Deployment Guide
+
+### Intune Configuration
+
+1. **Navigate to Intune Admin Center**
+   - Go to Devices > Scripts and remediations > Remediations
+   - Click "Create" to add a new remediation
+
+2. **Upload Scripts**
+   - Upload the detection PowerShell script
+   - Upload the corresponding remediation script
+   - Configure script settings and parameters
+
+3. **Assignment Configuration**
+   - Select target device groups
+   - Set execution schedule (daily/weekly)
+   - Configure retry and timeout settings
+
+4. **Monitoring Setup**
+   - Enable detailed logging
+   - Configure success/failure notifications
+   - Set up custom reporting if needed
+
+### Best Practices
+
+#### Script Development
+- Follow PowerShell best practices and coding standards
+- Implement comprehensive error handling and logging
+- Use parameter validation and input sanitization
+- Test thoroughly in isolated environments before deployment
+- Document all parameters, return codes, and side effects
+
+#### Security Considerations
+- Run scripts with minimum required privileges
 - Validate all user inputs and parameters
 - Use secure coding practices
 - Encrypt sensitive data in scripts
 - Regular security reviews of all scripts
 
-### Monitoring & Reporting
+#### Monitoring & Reporting
 - Implement comprehensive logging
 - Use Intune reporting for success/failure tracking
 - Set up alerts for critical remediation failures
@@ -163,6 +231,7 @@ intune-remediation-scripts/
 ## Testing
 
 ### Local Testing
+
 ```powershell
 # Run detection script locally
 .\detection-scripts\compliance\bitlocker-detection.ps1
@@ -172,6 +241,7 @@ intune-remediation-scripts/
 ```
 
 ### Validation Framework
+
 ```powershell
 # Run validation tests
 .\tests\validation-scripts\Invoke-ScriptValidation.ps1 -ScriptPath "detection-scripts\compliance"
@@ -179,7 +249,8 @@ intune-remediation-scripts/
 
 ## Contributing
 
-We welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING.md) for details on:
+We welcome contributions! Please read our [Contributing Guidelines](./CONTRIBUTING.md) for details on:
+
 - Code standards and review process
 - Testing requirements
 - Documentation standards
@@ -187,16 +258,17 @@ We welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING
 
 ## Documentation
 
-- [Deployment Guide](docs/deployment-guide.md) - Step-by-step deployment instructions
-- [Script Development](docs/script-development.md) - Guidelines for creating new scripts
-- [Testing Procedures](docs/testing-procedures.md) - Comprehensive testing methodology
-- [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
+- [Deployment Guide](./docs/deployment-guide.md) - Step-by-step deployment instructions
+- [Script Development](./docs/script-development.md) - Guidelines for creating new scripts
+- [Testing Procedures](./docs/testing-procedures.md) - Comprehensive testing methodology
+- [Troubleshooting](./docs/troubleshooting.md) - Common issues and solutions
 
 ## Support
 
 For questions, issues, or feature requests:
+
 - Create an [issue](https://github.com/a-ariff/intune-remediation-scripts/issues)
-- Check the [documentation](docs/)
+- Check the [documentation](./docs/)
 - Review [Microsoft Intune documentation](https://docs.microsoft.com/en-us/mem/intune/)
 
 ## License

@@ -1,0 +1,35 @@
+# PowerShell Lint Workflow
+# Runs PSScriptAnalyzer on PowerShell scripts in the repository
+
+name: PowerShell Lint
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: PowerShell Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Run PSScriptAnalyzer
+        uses: microsoft/psscriptanalyzer-action@6b2948b1944407914a58661c49941824d149734f
+        with:
+          path: .
+          recurse: true
+          includeRule: '"PSAvoidGlobalAliases", "PSAvoidUsingConvertToSecureStringWithPlainText"'
+          output: results.sarif
+          
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif

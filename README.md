@@ -1,5 +1,7 @@
 # Microsoft Intune Remediation Scripts
 
+> **Demo Update**: This file has been edited as part of a GitHub automation demonstration.
+
 [![PowerShell](https://img.shields.io/badge/PowerShell-5391FE?style=for-the-badge&logo=powershell&logoColor=white)](https://docs.microsoft.com/en-us/powershell/) [![Intune](https://img.shields.io/badge/Microsoft_Intune-0078D4?style=for-the-badge&logo=microsoft&logoColor=white)](https://intune.microsoft.com/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 ## Build Status
@@ -103,14 +105,14 @@ intune-remediation-scripts/
 
 1. Clone the repository:
 
-```bash
+```powershell
 git clone https://github.com/a-ariff/intune-remediation-scripts.git
 cd intune-remediation-scripts
 ```
 
 2. Select appropriate scripts:
-   - Browse the detection-scripts/ folder for detection logic
-   - Find corresponding remediation in remediation-scripts/
+   - Browse the `detection-scripts/` folder for detection logic
+   - Find corresponding remediation in `remediation-scripts/`
    - Review script documentation and parameters
 
 3. Test locally (optional but recommended):
@@ -133,30 +135,30 @@ cd intune-remediation-scripts
 ### 🔒 Compliance & Security
 
 | Script | Detection | Remediation | Description |
-|--------|-----------|-------------|-------------|
-| BitLocker | bitlocker-detection.ps1 | enable-bitlocker.ps1 | Ensures BitLocker encryption is enabled |
-| Windows Defender | defender-status-check.ps1 | configure-defender.ps1 | Configures and enables Windows Defender |
-| Windows Firewall | firewall-status-detection.ps1 | enable-firewall.ps1 | Ensures Windows Firewall is properly configured |
-| UAC Settings | uac-status-check.ps1 | configure-uac.ps1 | Configures User Account Control settings |
-| Windows Updates | windows-update-detection.ps1 | install-windows-updates.ps1 | Manages Windows Update installation |
-| Certificate Validation | certificate-validation.ps1 | update-certificates.ps1 | Validates and updates system certificates |
+|--------|-----------|-------------|--------------|
+| **BitLocker** | `bitlocker-detection.ps1` | `enable-bitlocker.ps1` | Ensures BitLocker encryption is enabled |
+| **Windows Defender** | `defender-status-check.ps1` | `configure-defender.ps1` | Configures and enables Windows Defender |
+| **Windows Firewall** | `firewall-status-detection.ps1` | `enable-firewall.ps1` | Ensures Windows Firewall is properly configured |
+| **UAC Settings** | `uac-status-check.ps1` | `configure-uac.ps1` | Configures User Account Control settings |
+| **Windows Updates** | `windows-update-detection.ps1` | `install-windows-updates.ps1` | Manages Windows Update installation |
+| **Certificate Validation** | `certificate-validation.ps1` | `update-certificates.ps1` | Validates and updates system certificates |
 
 ### ⚡ Performance Optimization
 
 | Script | Detection | Remediation | Description |
-|--------|-----------|-------------|-------------|
-| Disk Space | disk-space-check.ps1 | cleanup-temp-files.ps1 | Monitors and cleans up disk space |
-| Memory Usage | memory-usage-detection.ps1 | optimize-memory.ps1 | Detects and optimizes memory usage |
-| Startup Programs | startup-programs-check.ps1 | optimize-startup.ps1 | Manages startup program configuration |
-| Disk Defragmentation | fragmentation-check.ps1 | defragment-drives.ps1 | Schedules and performs disk defragmentation |
+|--------|-----------|-------------|--------------|
+| **Disk Space** | `disk-space-check.ps1` | `cleanup-temp-files.ps1` | Monitors and cleans up disk space |
+| **Memory Usage** | `memory-usage-detection.ps1` | `optimize-memory.ps1` | Detects and optimizes memory usage |
+| **Startup Programs** | `startup-programs-check.ps1` | `optimize-startup.ps1` | Manages startup program configuration |
+| **Disk Defragmentation** | `fragmentation-check.ps1` | `defragment-drives.ps1` | Schedules and performs disk defragmentation |
 
 ### 📦 Software Management
 
 | Script | Detection | Remediation | Description |
-|--------|-----------|-------------|-------------|
-| Required Applications | required-apps-check.ps1 | install-required-apps.ps1 | Ensures critical applications are installed |
-| Software Updates | outdated-software-detection.ps1 | update-software.ps1 | Detects and updates outdated software |
-| Bloatware Removal | bloatware-detection.ps1 | remove-bloatware.ps1 | Identifies and removes unwanted software |
+|--------|-----------|-------------|--------------|
+| **Required Applications** | `required-apps-check.ps1` | `install-required-apps.ps1` | Ensures critical applications are installed |
+| **Software Updates** | `outdated-software-detection.ps1` | `update-software.ps1` | Detects and updates outdated software |
+| **Bloatware Removal** | `bloatware-detection.ps1` | `remove-bloatware.ps1` | Identifies and removes unwanted software |
 
 ## Configuration
 
@@ -191,21 +193,21 @@ $env:INTUNE_SCRIPT_DETAILED_REPORTING = "true"
 
 ### Intune Configuration
 
-1. Navigate to Intune Admin Center
+1. **Navigate to Intune Admin Center**
    - Go to Devices > Scripts and remediations > Remediations
    - Click "Create" to add a new remediation
 
-2. Upload Scripts
+2. **Upload Scripts**
    - Upload the detection PowerShell script
    - Upload the corresponding remediation script
    - Configure script settings and parameters
 
-3. Assignment Configuration
+3. **Assignment Configuration**
    - Select target device groups
    - Set execution schedule (daily/weekly)
    - Configure retry and timeout settings
 
-4. Monitoring Setup
+4. **Monitoring Setup**
    - Enable detailed logging
    - Configure success/failure notifications
    - Set up custom reporting if needed
@@ -274,7 +276,7 @@ We welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING
 
 For questions, issues, or feature requests:
 
-- Create an [issue](../../issues)
+- Create an [issue](https://github.com/a-ariff/intune-remediation-scripts/issues)
 - Check the [documentation](docs/)
 - Review [Microsoft Intune documentation](https://docs.microsoft.com/en-us/mem/intune/)
 
@@ -284,8 +286,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Disclaimer
 
-⚠️ **Important**: These scripts are provided as-is for educational and reference purposes. Always test thoroughly in a non-production environment before deploying to production systems. The authors are not responsible for any damage or issues that may arise from using these scripts.
+⚠️**Important**: These scripts are provided as-is for educational and reference purposes. Always test thoroughly in a non-production environment before deploying to production systems. The authors are not responsible for any damage or issues that may arise from using these scripts.
 
 ## Tags
 
-intune powershell endpoint-management device-compliance remediation microsoft automation security windows mdm
+`intune` `powershell` `endpoint-management` `device-compliance` `remediation` `microsoft` `automation` `security` `windows` `mdm`

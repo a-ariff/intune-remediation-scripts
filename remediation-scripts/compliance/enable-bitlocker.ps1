@@ -29,94 +29,92 @@ function Get-BitLockerStatus {
         $blvStatus = Get-BitLockerVolume -MountPoint $Drive -ErrorAction Stop
         return $blvStatus
     } catch {
-        Write-Error "Failed to get BitLocker status for drive $Drive: $($_.Exception.Message)"
+        Write-Error "Failed to get BitLocker status for drive ${Drive}: $($_.Exception.Message)"
         return $null
     }
 }
 
-# Function to check TPM availability
-function Test-TPMAvailability {
+# Function to check TPM status
+function Get-TpmStatus {
     try {
-        $tpm = Get-WmiObject -Namespace "Root\CIMV2\Security\MicrosoftTpm" -Class Win32_Tpm -ErrorAction Stop
-        if ($tpm.IsEnabled_InitialValue -and $tpm.IsActivated_InitialValue) {
-            Write-Output "TPM is available and activated"
-            return $true
-        } else {
-            Write-Warning "TPM is not properly configured"
-            return $false
+        $tpm = Get-Tpm -ErrorAction Stop
+        return [PSCustomObject]@{
+            TpmPresent = $tpm.TpmPresent
+            TpmReady = $tpm.TpmReady
+            TpmEnabled = $tpm.TpmEnabled
+            TpmActivated = $tpm.TpmActivated
         }
     } catch {
-        Write-Warning "TPM not available or accessible: $($_.Exception.Message)"
-        return $false
+        Write-Warning "Failed to get TPM status: $($_.Exception.Message)"
+        return [PSCustomObject]@{
+            TpmPresent = $false
+            TpmReady = $false
+            TpmEnabled = $false
+            TpmActivated = $false
+        }
     }
 }
 
-# Function to enable BitLocker safely
-function Enable-BitLockerSafely {
+# Function to check if system is ready for BitLocker
+function Test-BitLockerReadiness {
+    $issues = @()
+    
+    # Check TPM
+    $tpmStatus = Get-TpmStatus
+    if (-not $tpmStatus.TpmPresent) {
+        $issues += "TPM is not present on this system"
+    } elseif (-not $tpmStatus.TpmReady) {
+        $issues += "TPM is present but not ready"
+    }
+    
+    # Check if system drive is NTFS
+    $systemDrive = Get-WmiObject -Class Win32_LogicalDisk -Filter "DeviceID='C:'"
+    if ($systemDrive.FileSystem -ne "NTFS") {
+        $issues += "System drive is not formatted with NTFS"
+    }
+    
+    # Check available space (BitLocker needs some free space)
+    $freeSpaceGB = [math]::Round($systemDrive.FreeSpace / 1GB, 2)
+    if ($freeSpaceGB -lt 1) {
+        $issues += "Insufficient free space on system drive (requires at least 1GB)"
+    }
+    
+    return [PSCustomObject]@{
+        IsReady = ($issues.Count -eq 0)
+        Issues = $issues
+    }
+}
+
+# Function to enable BitLocker
+function Enable-BitLockerEncryption {
     param(
         [string]$Drive = "C:",
         [switch]$WhatIf
     )
     
     try {
-        # Check current BitLocker status
-        $status = Get-BitLockerStatus -Drive $Drive
-        
-        if ($null -eq $status) {
-            Write-Error "Cannot determine BitLocker status for drive $Drive"
-            return $false
-        }
-        
-        if ($status.VolumeStatus -eq "FullyEncrypted") {
-            Write-Output "Drive $Drive is already fully encrypted with BitLocker"
-            return $true
-        }
-        
-        if ($status.VolumeStatus -eq "EncryptionInProgress") {
-            Write-Output "Drive $Drive encryption is already in progress"
-            return $true
-        }
-        
-        # Check TPM availability
-        $tpmAvailable = Test-TPMAvailability
-        
         if ($WhatIf) {
-            Write-Output "[WHATIF] Would enable BitLocker on drive $Drive"
-            Write-Output "[WHATIF] Current status: $($status.VolumeStatus)"
-            Write-Output "[WHATIF] Protection status: $($status.ProtectionStatus)"
-            if ($tpmAvailable) {
-                Write-Output "[WHATIF] Would use TPM as key protector"
-            } else {
-                Write-Output "[WHATIF] Would use recovery password (TPM not available)"
-            }
+            Write-Output "[WHATIF] Would enable BitLocker encryption on drive $Drive"
+            Write-Output "[WHATIF] Would use TPM as key protector"
+            Write-Output "[WHATIF] Would start encryption process"
             return $true
         }
         
         Write-Output "Enabling BitLocker on drive $Drive..."
         
-        if ($tpmAvailable) {
-            # Enable BitLocker with TPM
-            $result = Enable-BitLocker -MountPoint $Drive -TpmProtector -SkipHardwareTest
-        } else {
-            # Enable BitLocker with recovery password only
-            $result = Enable-BitLocker -MountPoint $Drive -RecoveryPasswordProtector -SkipHardwareTest
-        }
+        # Enable BitLocker with TPM protector
+        $result = Enable-BitLocker -MountPoint $Drive -TpmProtector -ErrorAction Stop
         
         if ($result) {
             Write-Output "BitLocker enabled successfully on drive $Drive"
             
-            # Get recovery key if generated
-            $recoveryKeys = Get-BitLockerVolume -MountPoint $Drive | Select-Object -ExpandProperty KeyProtector | Where-Object {$_.KeyProtectorType -eq "RecoveryPassword"}
-            if ($recoveryKeys) {
-                Write-Output "IMPORTANT: BitLocker recovery password(s) generated. Store securely!"
-                foreach ($key in $recoveryKeys) {
-                    Write-Output "Recovery Key ID: $($key.KeyProtectorId)"
-                }
-            }
+            # Start encryption
+            Write-Output "Starting encryption process..."
+            Resume-BitLocker -MountPoint $Drive -ErrorAction Stop
             
             return $true
         } else {
-            Write-Error "Failed to enable BitLocker on drive $Drive"
+            Write-Warning "Failed to enable BitLocker on drive $Drive"
             return $false
         }
         
@@ -126,29 +124,21 @@ function Enable-BitLockerSafely {
     }
 }
 
-# Function to check system compatibility
-function Test-BitLockerCompatibility {
+# Function to check encryption progress
+function Get-EncryptionProgress {
+    param([string]$Drive = "C:")
+    
     try {
-        # Check Windows version
-        $osVersion = [System.Environment]::OSVersion.Version
-        if ($osVersion.Major -lt 6 -or ($osVersion.Major -eq 6 -and $osVersion.Minor -lt 2)) {
-            Write-Error "BitLocker requires Windows 8/Server 2012 or newer"
-            return $false
+        $status = Get-BitLockerVolume -MountPoint $Drive -ErrorAction Stop
+        
+        return [PSCustomObject]@{
+            VolumeStatus = $status.VolumeStatus
+            EncryptionPercentage = $status.EncryptionPercentage
+            ProtectionStatus = $status.ProtectionStatus
         }
-        
-        # Check if BitLocker feature is available
-        $blFeature = Get-WindowsOptionalFeature -Online -FeatureName "BitLocker" -ErrorAction SilentlyContinue
-        if ($blFeature -and $blFeature.State -ne "Enabled") {
-            Write-Warning "BitLocker feature is not enabled"
-            return $false
-        }
-        
-        Write-Output "System is compatible with BitLocker"
-        return $true
-        
     } catch {
-        Write-Warning "Cannot verify BitLocker compatibility: $($_.Exception.Message)"
-        return $true  # Assume compatible if we can't check
+        Write-Warning "Failed to get encryption progress: $($_.Exception.Message)"
+        return $null
     }
 }
 
@@ -160,20 +150,66 @@ try {
         Write-Output "[WHATIF] Running in simulation mode - no changes will be made"
     }
     
-    # Check system compatibility
-    if (-not (Test-BitLockerCompatibility)) {
-        Write-Error "System is not compatible with BitLocker"
+    # Check current BitLocker status
+    Write-Output "Checking current BitLocker status..."
+    $currentStatus = Get-BitLockerStatus -Drive "C:"
+    
+    if ($currentStatus) {
+        Write-Output "Current BitLocker Status:"
+        Write-Output "  - Volume Status: $($currentStatus.VolumeStatus)"
+        Write-Output "  - Protection Status: $($currentStatus.ProtectionStatus)"
+        Write-Output "  - Encryption Percentage: $($currentStatus.EncryptionPercentage)%"
+        
+        # Check if BitLocker is already fully enabled and encrypted
+        if ($currentStatus.VolumeStatus -eq "FullyEncrypted" -and $currentStatus.ProtectionStatus -eq "On") {
+            Write-Output "BitLocker is already fully enabled and encrypted on drive C:"
+            exit 0
+        }
+        
+        # Check if encryption is in progress
+        if ($currentStatus.VolumeStatus -eq "EncryptionInProgress") {
+            Write-Output "BitLocker encryption is already in progress on drive C:"
+            Write-Output "Current progress: $($currentStatus.EncryptionPercentage)%"
+            exit 0
+        }
+    }
+    
+    # Check system readiness
+    Write-Output "Checking system readiness for BitLocker..."
+    $readinessCheck = Test-BitLockerReadiness
+    
+    if (-not $readinessCheck.IsReady) {
+        Write-Warning "System is not ready for BitLocker encryption:"
+        foreach ($issue in $readinessCheck.Issues) {
+            Write-Warning "  - $issue"
+        }
         exit 1
     }
     
-    # Enable BitLocker on C: drive
-    $success = Enable-BitLockerSafely -Drive "C:" -WhatIf:$WhatIf
+    Write-Output "System is ready for BitLocker encryption"
     
-    if ($success) {
-        Write-Output "BitLocker remediation completed successfully"
+    # Enable BitLocker
+    $enableResult = Enable-BitLockerEncryption -Drive "C:" -WhatIf:$WhatIf
+    
+    if ($enableResult) {
+        if (-not $WhatIf) {
+            Write-Output "Waiting for encryption to start..."
+            Start-Sleep -Seconds 5
+            
+            # Check encryption progress
+            $progress = Get-EncryptionProgress -Drive "C:"
+            if ($progress) {
+                Write-Output "Encryption Progress:"
+                Write-Output "  - Volume Status: $($progress.VolumeStatus)"
+                Write-Output "  - Encryption Percentage: $($progress.EncryptionPercentage)%"
+                Write-Output "  - Protection Status: $($progress.ProtectionStatus)"
+            }
+        }
+        
+        Write-Output "BitLocker enablement completed successfully"
         exit 0
     } else {
-        Write-Error "BitLocker remediation failed"
+        Write-Error "Failed to enable BitLocker"
         exit 1
     }
     

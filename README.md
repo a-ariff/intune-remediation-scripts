@@ -1,6 +1,6 @@
 # Microsoft Intune Remediation Scripts
 
-> **Demo Update**: This file has been edited as part of a GitHub automation demonstration.
+> **Imp Update**: This file has been edited as part of a GitHub automation demonstration.
 
 > ⭐ **Help Us Reach Starstruck!** ⭐  
 > If you find this repository useful, please consider starring it! We're working toward the GitHub Starstruck achievement and your star helps support the project and makes it more discoverable for other IT professionals. Thank you for your support! 🚀

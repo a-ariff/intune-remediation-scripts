@@ -109,18 +109,18 @@ intune-remediation-scripts/
 
 ### Basic Usage
 
-1. Clone the repository:
+1. **Clone the repository:**
    ```bash
    git clone https://github.com/a-ariff/intune-remediation-scripts.git
    cd intune-remediation-scripts
    ```
 
-2. Select appropriate scripts:
+2. **Select appropriate scripts:**
    - Browse the `detection-scripts/` folder for detection logic
    - Find corresponding remediation in `remediation-scripts/`
    - Review script documentation and parameters
 
-3. Test locally (optional but recommended):
+3. **Test locally (optional but recommended):**
    ```powershell
    # Test detection script
    .\detection-scripts\compliance\bitlocker-detection.ps1
@@ -129,7 +129,7 @@ intune-remediation-scripts/
    .\remediation-scripts\compliance\enable-bitlocker.ps1
    ```
 
-4. Deploy via Intune:
+4. **Deploy via Intune:**
    - Upload detection and remediation scripts to Intune
    - Configure assignment groups and settings
    - Monitor execution and results
@@ -283,6 +283,7 @@ For questions, issues, or feature requests:
 - Create an [issue](https://github.com/a-ariff/intune-remediation-scripts/issues)
 - Check the [documentation](docs/)
 - Review [Microsoft Intune documentation](https://docs.microsoft.com/en-us/mem/intune/)
+- **Contact**: For professional support and consultation, reach out to [contact@aglobaltec.com](mailto:contact@aglobaltec.com)
 
 ## License
 
@@ -297,5 +298,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 `intune` `powershell` `endpoint-management` `device-compliance` `remediation` `microsoft` `automation` `security` `windows` `mdm`
 
 🎯 **YOLO Achievement Test**: This line was added to test GitHub automation and the YOLO achievement for creating and merging a pull request without review. Ready to YOLO! 🚀
-
 <!-- Additional comment for YOLO achievement test - Testing branch changes without review -->

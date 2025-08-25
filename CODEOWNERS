@@ -1,0 +1,31 @@
+# CODEOWNERS file for intune-remediation-scripts repository
+# This file defines individuals or teams that are responsible for code in this repository.
+# Order is important; the last matching pattern takes the most precedence.
+
+# Global owners
+* @a-ariff
+
+# Documentation owners
+*.md @a-ariff
+docs/ @a-ariff
+
+# Script owners
+detection-scripts/ @a-ariff
+remediation-scripts/ @a-ariff
+tests/ @a-ariff
+
+# Configuration and workflow owners
+.github/ @a-ariff
+*.yml @a-ariff
+*.yaml @a-ariff
+*.json @a-ariff
+
+# Security-related files
+SECURITY.md @a-ariff
+CONTRIBUTING.md @a-ariff
+LICENSE @a-ariff
+
+# PowerShell scripts
+*.ps1 @a-ariff
+*.psm1 @a-ariff
+*.psd1 @a-ariff

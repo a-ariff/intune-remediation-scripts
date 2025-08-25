@@ -1,9 +1,14 @@
 # Microsoft Intune Remediation Scripts
+
 > **Imp Update**: This file has been edited as part of a GitHub automation demonstration.
 > ⭐ **Help Us Reach Starstruck!** ⭐  
 > If you find this repository useful, please consider starring it! We're working toward the GitHub Starstruck achievement and your star helps support the project and makes it more discoverable for other IT professionals. Thank you for your support! 🚀
 
 [![PowerShell](https://img.shields.io/badge/PowerShell-5391FE?style=for-the-badge&logo=powershell&logoColor=white)](https://docs.microsoft.com/en-us/powershell/) [![Intune](https://img.shields.io/badge/Microsoft_Intune-0078D4?style=for-the-badge&logo=microsoft&logoColor=white)](https://intune.microsoft.com/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+
+[![GitHub stars](https://img.shields.io/github/stars/a-ariff/intune-remediation-scripts?style=for-the-badge&logo=github)](https://github.com/a-ariff/intune-remediation-scripts/stargazers) [![GitHub forks](https://img.shields.io/github/forks/a-ariff/intune-remediation-scripts?style=for-the-badge&logo=github)](https://github.com/a-ariff/intune-remediation-scripts/network) [![GitHub issues](https://img.shields.io/github/issues/a-ariff/intune-remediation-scripts?style=for-the-badge&logo=github)](https://github.com/a-ariff/intune-remediation-scripts/issues)
+
+[![GitHub last commit](https://img.shields.io/github/last-commit/a-ariff/intune-remediation-scripts?style=for-the-badge&logo=github)](https://github.com/a-ariff/intune-remediation-scripts/commits/main) [![Contributions welcome](https://img.shields.io/badge/Contributions-welcome-brightgreen.svg?style=for-the-badge)](https://github.com/a-ariff/intune-remediation-scripts/blob/main/CONTRIBUTING.md) [![Made with ❤️](https://img.shields.io/badge/Made%20with-❤️-red.svg?style=for-the-badge)](https://github.com/a-ariff)
 
 ## Build Status
 
@@ -273,6 +278,7 @@ We welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING
 ## Support
 
 For questions, issues, or feature requests:
+
 - Create an [issue](https://github.com/a-ariff/intune-remediation-scripts/issues)
 - Check the [documentation](docs/)
 - Review [Microsoft Intune documentation](https://docs.microsoft.com/en-us/mem/intune/)
@@ -288,7 +294,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Tags
 
 `intune` `powershell` `endpoint-management` `device-compliance` `remediation` `microsoft` `automation` `security` `windows` `mdm`
-
----
 
 🎯 **YOLO Achievement Test**: This line was added to test GitHub automation and the YOLO achievement for creating and merging a pull request without review. Ready to YOLO! 🚀

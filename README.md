@@ -110,11 +110,10 @@ intune-remediation-scripts/
 ### Basic Usage
 
 1. Clone the repository:
-
-```bash
-git clone https://github.com/a-ariff/intune-remediation-scripts.git
-cd intune-remediation-scripts
-```
+   ```bash
+   git clone https://github.com/a-ariff/intune-remediation-scripts.git
+   cd intune-remediation-scripts
+   ```
 
 2. Select appropriate scripts:
    - Browse the `detection-scripts/` folder for detection logic
@@ -122,14 +121,13 @@ cd intune-remediation-scripts
    - Review script documentation and parameters
 
 3. Test locally (optional but recommended):
-
-```powershell
-# Test detection script
-.\detection-scripts\compliance\bitlocker-detection.ps1
-
-# Test remediation script (with caution)
-.\remediation-scripts\compliance\enable-bitlocker.ps1
-```
+   ```powershell
+   # Test detection script
+   .\detection-scripts\compliance\bitlocker-detection.ps1
+   
+   # Test remediation script (with caution)
+   .\remediation-scripts\compliance\enable-bitlocker.ps1
+   ```
 
 4. Deploy via Intune:
    - Upload detection and remediation scripts to Intune
@@ -221,6 +219,7 @@ $env:INTUNE_SCRIPT_DETAILED_REPORTING = "true"
 ### Best Practices
 
 #### Script Development
+
 - Follow PowerShell best practices and coding standards
 - Implement comprehensive error handling and logging
 - Use parameter validation and input sanitization
@@ -228,6 +227,7 @@ $env:INTUNE_SCRIPT_DETAILED_REPORTING = "true"
 - Document all parameters, return codes, and side effects
 
 #### Security Considerations
+
 - Run scripts with minimum required privileges
 - Validate all user inputs and parameters
 - Use secure coding practices
@@ -235,6 +235,7 @@ $env:INTUNE_SCRIPT_DETAILED_REPORTING = "true"
 - Regular security reviews of all scripts
 
 #### Monitoring & Reporting
+
 - Implement comprehensive logging
 - Use Intune reporting for success/failure tracking
 - Set up alerts for critical remediation failures
@@ -296,3 +297,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 `intune` `powershell` `endpoint-management` `device-compliance` `remediation` `microsoft` `automation` `security` `windows` `mdm`
 
 🎯 **YOLO Achievement Test**: This line was added to test GitHub automation and the YOLO achievement for creating and merging a pull request without review. Ready to YOLO! 🚀
+
+<!-- Additional comment for YOLO achievement test - Testing branch changes without review -->

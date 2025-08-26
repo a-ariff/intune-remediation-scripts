@@ -1,5 +1,6 @@
 # PowerShell Lint and Test Workflow (2025 Enhanced)
 # Comprehensive PowerShell testing with modern GitHub Actions practices
+
 name: PowerShell CI/CD Pipeline
 
 on:
@@ -63,79 +64,107 @@ jobs:
               - '**/*.psm1'
               - '**/*.psd1'
       
-      - name: Cache PSScriptAnalyzer
+      - name: Setup PowerShell
+        if: steps.changes.outputs.powershell == 'true'
+        shell: bash
+        run: |
+          # Install PowerShell 7.x on Ubuntu
+          sudo snap install powershell --classic
+          
+      - name: Cache PowerShell modules
+        if: steps.changes.outputs.powershell == 'true'
         uses: actions/cache@v4
         with:
-          path: ~/.local/share/powershell/Modules
-          key: ${{ runner.os }}-psmodules-${{ hashFiles('**/ps-lint.yml') }}
+          path: |
+            ~/.local/share/powershell/Modules
+            /usr/local/share/powershell/Modules
+          key: ${{ runner.os }}-powershell-modules-${{ hashFiles('**/*.psd1', '**/*.psm1') }}
           restore-keys: |
-            ${{ runner.os }}-psmodules-
+            ${{ runner.os }}-powershell-modules-
       
-      - name: Setup PowerShell
-        uses: actions/setup-powershell@v1
-        
       - name: Install PSScriptAnalyzer
+        if: steps.changes.outputs.powershell == 'true'
         shell: pwsh
         run: |
           Set-PSRepository PSGallery -InstallationPolicy Trusted
           Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+          Install-Module -Name Pester -Force -Scope CurrentUser -SkipPublisherCheck
+          Get-Module -ListAvailable PSScriptAnalyzer, Pester
           
       - name: Run PSScriptAnalyzer
-        uses: microsoft/psscriptanalyzer-action@v1.1
-        with:
-          path: .
-          recurse: true
-          includeRule: >
-            "PSAvoidGlobalAliases",
-            "PSAvoidUsingConvertToSecureStringWithPlainText",
-            "PSAvoidUsingPlainTextForPassword",
-            "PSUseShouldProcessForStateChangingFunctions",
-            "PSUseApprovedVerbs",
-            "PSUseSingularNouns",
-            "PSAvoidUsingWMICmdlet",
-            "PSUseDeclaredVarsMoreThanAssignments"
-          excludeRule: "PSUseBOMForUnicodeEncodedFile"
-          output: results.sarif
+        if: steps.changes.outputs.powershell == 'true'
+        shell: pwsh
+        run: |
+          $analysisResults = @()
+          $psFiles = Get-ChildItem -Path . -Include "*.ps1", "*.psm1", "*.psd1" -Recurse
           
-      - name: Upload SARIF results to GitHub
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: results.sarif
-          category: "PSScriptAnalyzer"
+          foreach ($file in $psFiles) {
+              Write-Host "Analyzing: $($file.FullName)"
+              $results = Invoke-ScriptAnalyzer -Path $file.FullName -Severity @('Error', 'Warning', 'Information') -Recurse
+              $analysisResults += $results
+          }
           
-      - name: Upload SARIF as artifact
+          if ($analysisResults.Count -gt 0) {
+              Write-Host "PSScriptAnalyzer found $($analysisResults.Count) issues:"
+              $analysisResults | Format-Table -AutoSize
+              
+              $errorCount = ($analysisResults | Where-Object Severity -eq 'Error').Count
+              $warningCount = ($analysisResults | Where-Object Severity -eq 'Warning').Count
+              $infoCount = ($analysisResults | Where-Object Severity -eq 'Information').Count
+              
+              Write-Host "Summary: $errorCount errors, $warningCount warnings, $infoCount informational"
+              
+              if ($errorCount -gt 0) {
+                  Write-Error "PSScriptAnalyzer found $errorCount error(s). Please fix before proceeding."
+                  exit 1
+              }
+          } else {
+              Write-Host "✅ No PSScriptAnalyzer issues found!"
+          }
+          
+      - name: Upload analysis results
+        if: always() && steps.changes.outputs.powershell == 'true'
         uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: sarif-results
-          path: results.sarif
+          name: pssa-results
+          path: |
+            **/*.ps1
+            **/*.psm1
+            **/*.psd1
           retention-days: 30
 
   test:
     name: PowerShell Tests
     needs: lint
-    if: needs.lint.outputs.ps-files-changed == 'true' || github.event.inputs.run_tests == 'true'
+    if: needs.lint.outputs.ps-files-changed == 'true' && (github.event.inputs.run_tests == 'true' || github.event.inputs.run_tests == '')
+    timeout-minutes: 15
+    
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        powershell-version: ['7.4', 'latest']
+        powershell-version: ['7.2', '7.3', '7.4']
         exclude:
           - os: macos-latest
-            powershell-version: '7.4'
-            
+            powershell-version: '7.2'
+    
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
-      - name: Setup PowerShell ${{ matrix.powershell-version }}
-        uses: actions/setup-powershell@v1
         with:
-          powershell-version: ${{ matrix.powershell-version }}
+          fetch-depth: 0
+          
+      - name: Setup PowerShell on Ubuntu/macOS
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            sudo snap install powershell --classic
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            brew install --cask powershell
+          fi
           
       - name: Cache PowerShell modules
         uses: actions/cache@v4
@@ -143,63 +172,39 @@ jobs:
           path: |
             ~/.local/share/powershell/Modules
             ~/Documents/PowerShell/Modules
-          key: ${{ matrix.os }}-ps${{ matrix.powershell-version }}-modules-${{ hashFiles('**/RequiredModules.psd1', '**/Modules.ps1') }}
+            /usr/local/share/powershell/Modules
+            C:\Users\runneradmin\Documents\PowerShell\Modules
+          key: ${{ runner.os }}-ps${{ matrix.powershell-version }}-modules-${{ hashFiles('**/*.psd1', '**/*.psm1') }}
           restore-keys: |
-            ${{ matrix.os }}-ps${{ matrix.powershell-version }}-modules-
-            
+            ${{ runner.os }}-ps${{ matrix.powershell-version }}-modules-
+      
       - name: Install test dependencies
         shell: pwsh
         run: |
           Set-PSRepository PSGallery -InstallationPolicy Trusted
-          $modules = @('Pester', 'PSScriptAnalyzer', 'PowerShellGet')
-          foreach ($module in $modules) {
-            if (!(Get-Module -ListAvailable $module)) {
-              Install-Module -Name $module -Force -Scope CurrentUser
-            }
-          }
+          Install-Module -Name Pester -Force -Scope CurrentUser -SkipPublisherCheck -MinimumVersion 5.0
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+          Get-Module -ListAvailable Pester, PSScriptAnalyzer
           
-      - name: Run PowerShell syntax validation
+      - name: Run Pester tests
         shell: pwsh
         run: |
-          $files = Get-ChildItem -Path . -Include "*.ps1", "*.psm1", "*.psd1" -Recurse
-          $errors = @()
+          $pesterConfig = New-PesterConfiguration
+          $pesterConfig.Run.Path = './'
+          $pesterConfig.TestResult.Enabled = $true
+          $pesterConfig.TestResult.OutputPath = 'test-results.xml'
+          $pesterConfig.TestResult.OutputFormat = 'JUnit'
+          $pesterConfig.CodeCoverage.Enabled = $true
+          $pesterConfig.CodeCoverage.OutputPath = 'coverage.xml'
+          $pesterConfig.CodeCoverage.OutputFormat = 'JaCoCo'
+          $pesterConfig.Output.Verbosity = 'Detailed'
           
-          foreach ($file in $files) {
-            try {
-              $null = [System.Management.Automation.Language.Parser]::ParseFile(
-                $file.FullName, [ref]$null, [ref]$null
-              )
-              Write-Host "✓ $($file.Name) - Syntax OK" -ForegroundColor Green
-            }
-            catch {
-              $errors += "❌ $($file.Name) - Syntax Error: $($_.Exception.Message)"
-              Write-Error "❌ $($file.Name) - Syntax Error: $($_.Exception.Message)"
-            }
+          $psFiles = Get-ChildItem -Path . -Include "*.ps1" -Recurse | Where-Object { $_.Name -notlike "*.Tests.ps1" }
+          if ($psFiles.Count -gt 0) {
+              $pesterConfig.CodeCoverage.Path = $psFiles.FullName
           }
           
-          if ($errors.Count -gt 0) {
-            Write-Error "Found $($errors.Count) syntax errors"
-            exit 1
-          }
-          
-      - name: Run Pester tests (if available)
-        shell: pwsh
-        run: |
-          if (Test-Path "Tests" -PathType Container) {
-            Import-Module Pester -Force
-            $config = New-PesterConfiguration
-            $config.Run.Path = "./Tests"
-            $config.TestResult.Enabled = $true
-            $config.TestResult.OutputFormat = "NUnitXml"
-            $config.TestResult.OutputPath = "test-results.xml"
-            $config.CodeCoverage.Enabled = $true
-            $config.CodeCoverage.OutputFormat = "JaCoCo"
-            $config.CodeCoverage.OutputPath = "coverage.xml"
-            
-            Invoke-Pester -Configuration $config
-          } else {
-            Write-Host "No Tests directory found, skipping Pester tests"
-          }
+          Invoke-Pester -Configuration $pesterConfig
           
       - name: Upload test results
         uses: actions/upload-artifact@v4

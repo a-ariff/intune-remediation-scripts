@@ -1,5 +1,4 @@
-# PowerShell Lint and Test Workflow (2025 Enhanced)
-# Comprehensive PowerShell testing with modern GitHub Actions practices
+# PowerShell Lint and Test Workflow
 name: PowerShell CI/CD Pipeline
 
 on:
@@ -32,7 +31,6 @@ permissions:
   contents: read
   security-events: write
   actions: read
-  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -62,18 +60,25 @@ jobs:
               - '**/*.ps1'
               - '**/*.psm1'
               - '**/*.psd1'
-      
-      # Setup PowerShell using the official actions/setup-powershell action
+              
       - name: Setup PowerShell
-        uses: actions/setup-powershell@v1
         if: steps.changes.outputs.powershell == 'true'
-        
-      - name: Cache PSScriptAnalyzer module
+        shell: bash
+        run: |
+          # Install PowerShell on Ubuntu
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https software-properties-common
+          wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+          sudo dpkg -i packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo apt-get install -y powershell
+          
+      - name: Cache PowerShell modules
+        if: steps.changes.outputs.powershell == 'true'
         uses: actions/cache@v4
-        if: steps.changes.outputs.powershell == 'true'
         with:
           path: ~/.local/share/powershell/Modules
-          key: ${{ runner.os }}-powershell-modules-${{ hashFiles('**/*.ps1', '**/*.psm1', '**/*.psd1') }}
+          key: ${{ runner.os }}-powershell-modules-${{ hashFiles('**/*.psd1') }}
           restore-keys: |
             ${{ runner.os }}-powershell-modules-
             
@@ -84,98 +89,88 @@ jobs:
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
           Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
           
-      - name: Run PSScriptAnalyzer (Errors Only)
+      - name: Run PSScriptAnalyzer
         if: steps.changes.outputs.powershell == 'true'
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          
-          Write-Host "🔍 Running PSScriptAnalyzer (Errors Only Mode)" -ForegroundColor Green
-          
-          $scriptFiles = Get-ChildItem -Path . -Include *.ps1, *.psm1, *.psd1 -Recurse | Where-Object {
-            $_.FullName -notmatch '\\.git\\'
-          }
-          
-          if ($scriptFiles.Count -eq 0) {
-            Write-Host "No PowerShell files found to analyze." -ForegroundColor Yellow
-            exit 0
-          }
-          
-          Write-Host "Found $($scriptFiles.Count) PowerShell files to analyze" -ForegroundColor Cyan
-          
-          $allIssues = @()
-          $errorCount = 0
-          
-          foreach ($file in $scriptFiles) {
-            Write-Host "Analyzing: $($file.Name)" -ForegroundColor Gray
-            
-            $issues = Invoke-ScriptAnalyzer -Path $file.FullName -Severity Error
-            
-            if ($issues) {
-              $allIssues += $issues
-              $errorCount += $issues.Count
-              
-              Write-Host "❌ Found $($issues.Count) error(s) in $($file.Name)" -ForegroundColor Red
-              foreach ($issue in $issues) {
-                Write-Host "  Line $($issue.Line): $($issue.Message)" -ForegroundColor Red
-              }
+          $results = Invoke-ScriptAnalyzer -Path . -Recurse -Settings PSGallery -Severity Error,Warning
+          if ($results) {
+            $results | ForEach-Object {
+              Write-Output "::$($_.Severity.ToLower()) file=$($_.ScriptName),line=$($_.Line),col=$($_.Column)::$($_.Message)"
+            }
+            if ($results | Where-Object Severity -eq 'Error') {
+              Write-Output "❌ PSScriptAnalyzer found errors"
+              exit 1
             } else {
-              Write-Host "✅ $($file.Name) - No errors" -ForegroundColor Green
+              Write-Output "⚠️ PSScriptAnalyzer found warnings but no errors"
+            }
+          } else {
+            Write-Output "✅ No PSScriptAnalyzer issues found"
+          }
+          
+      - name: PowerShell syntax check
+        if: steps.changes.outputs.powershell == 'true'
+        shell: pwsh
+        run: |
+          $errors = @()
+          Get-ChildItem -Path . -Filter '*.ps1' -Recurse | ForEach-Object {
+            try {
+              $null = [System.Management.Automation.PSParser]::Tokenize((Get-Content $_.FullName -Raw), [ref]$null)
+              Write-Output "✅ Syntax OK: $($_.Name)"
+            } catch {
+              $errors += "❌ Syntax Error in $($_.Name): $($_.Exception.Message)"
+              Write-Output "❌ Syntax Error in $($_.Name): $($_.Exception.Message)"
             }
           }
-          
-          Write-Host "`n📊 Analysis Summary:" -ForegroundColor Cyan
-          Write-Host "Files analyzed: $($scriptFiles.Count)" -ForegroundColor White
-          Write-Host "Total errors: $errorCount" -ForegroundColor White
-          
-          if ($errorCount -gt 0) {
-            Write-Host "`n❌ PSScriptAnalyzer found $errorCount error(s). Please fix these issues." -ForegroundColor Red
-            
-            # Export detailed results for potential use in other steps
-            $allIssues | ConvertTo-Json -Depth 5 | Out-File -FilePath 'pssa-results.json' -Encoding utf8
-            
+          if ($errors.Count -gt 0) {
+            Write-Output "Found $($errors.Count) syntax errors"
             exit 1
-          } else {
-            Write-Host "`n✅ All PowerShell files passed PSScriptAnalyzer analysis!" -ForegroundColor Green
           }
 
   test:
     name: PowerShell Tests
-    if: github.event.inputs.run_tests != 'false' && needs.lint.outputs.ps-files-changed == 'true'
     needs: lint
-    timeout-minutes: 15
-    
+    if: needs.lint.outputs.ps-files-changed == 'true' && (github.event.inputs.run_tests != 'false')
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        powershell-version: ['7.4', '7.3']
-        exclude:
-          # Reduce matrix size for faster execution
-          - os: macos-latest
-            powershell-version: '7.3'
-    
+        powershell-version: ['7.4', 'latest']
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Setup PowerShell ${{ matrix.powershell-version }}
-        uses: actions/setup-powershell@v1
-        with:
-          powershell-version: ${{ matrix.powershell-version }}
+      - name: Setup PowerShell on Ubuntu/macOS
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            # Install PowerShell on Ubuntu
+            sudo apt-get update
+            sudo apt-get install -y wget apt-transport-https software-properties-common
+            wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+            sudo dpkg -i packages-microsoft-prod.deb
+            sudo apt-get update
+            sudo apt-get install -y powershell
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            # Install PowerShell on macOS
+            brew install --cask powershell
+          fi
           
       - name: Cache PowerShell modules
         uses: actions/cache@v4
         with:
           path: |
             ~/.local/share/powershell/Modules
-            ~/AppData/Local/powershell/Modules
-            ~/.cache/powershell/Modules
-          key: ${{ runner.os }}-ps${{ matrix.powershell-version }}-modules-${{ hashFiles('**/*.ps1', '**/*.psm1', '**/*.psd1') }}
+            ~/Documents/PowerShell/Modules
+            C:\Users\runneradmin\Documents\PowerShell\Modules
+          key: ${{ runner.os }}-powershell-modules-${{ matrix.powershell-version }}-${{ hashFiles('**/*.psd1') }}
           restore-keys: |
-            ${{ runner.os }}-ps${{ matrix.powershell-version }}-modules-
+            ${{ runner.os }}-powershell-modules-${{ matrix.powershell-version }}-
+            ${{ runner.os }}-powershell-modules-
             
       - name: Install test dependencies
         shell: pwsh
@@ -184,61 +179,37 @@ jobs:
           Install-Module -Name Pester -MinimumVersion 5.0 -Force -Scope CurrentUser
           Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
           
-      - name: Run PowerShell tests
+      - name: Run Pester tests
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          # Configure Pester
+          $config = New-PesterConfiguration
+          $config.Run.Path = '.'
+          $config.Run.PassThru = $true
+          $config.CodeCoverage.Enabled = $true
+          $config.CodeCoverage.Path = '**/*.ps1'
+          $config.CodeCoverage.OutputFormat = 'JaCoCo'
+          $config.CodeCoverage.OutputPath = 'coverage.xml'
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputFormat = 'NUnitXml'
+          $config.TestResult.OutputPath = 'test-results.xml'
+          $config.Output.Verbosity = 'Detailed'
           
-          Write-Host "🧪 Running PowerShell Tests" -ForegroundColor Green
-          Write-Host "OS: ${{ matrix.os }}" -ForegroundColor Cyan
-          Write-Host "PowerShell Version: ${{ matrix.powershell-version }}" -ForegroundColor Cyan
+          # Run tests
+          $result = Invoke-Pester -Configuration $config
           
-          # Basic syntax validation for all PS files
-          $scriptFiles = Get-ChildItem -Path . -Include *.ps1, *.psm1, *.psd1 -Recurse | Where-Object {
-            $_.FullName -notmatch '\\.git\\'
-          }
+          # Output results
+          Write-Output "Tests run: $($result.TotalCount)"
+          Write-Output "Passed: $($result.PassedCount)"
+          Write-Output "Failed: $($result.FailedCount)"
+          Write-Output "Skipped: $($result.SkippedCount)"
           
-          Write-Host "`nValidating PowerShell syntax for $($scriptFiles.Count) files..." -ForegroundColor Yellow
-          
-          $syntaxErrors = 0
-          foreach ($file in $scriptFiles) {
-            try {
-              $null = [System.Management.Automation.PSParser]::Tokenize((Get-Content $file.FullName -Raw), [ref]$null)
-              Write-Host "✅ $($file.Name) - Syntax OK" -ForegroundColor Green
-            } catch {
-              Write-Host "❌ $($file.Name) - Syntax Error: $($_.Exception.Message)" -ForegroundColor Red
-              $syntaxErrors++
-            }
-          }
-          
-          if ($syntaxErrors -gt 0) {
-            Write-Host "`n❌ Found $syntaxErrors syntax error(s)" -ForegroundColor Red
+          if ($result.FailedCount -gt 0) {
+            Write-Output "❌ $($result.FailedCount) test(s) failed"
             exit 1
-          }
-          
-          # Look for and run any Pester tests
-          $testFiles = Get-ChildItem -Path . -Filter '*.Tests.ps1' -Recurse
-          
-          if ($testFiles.Count -gt 0) {
-            Write-Host "`n🧪 Running Pester tests..." -ForegroundColor Yellow
-            
-            $testResult = Invoke-Pester -Path $testFiles.FullName -OutputFormat NUnitXml -OutputFile 'test-results.xml' -PassThru
-            
-            Write-Host "`n📊 Test Results:" -ForegroundColor Cyan
-            Write-Host "Total tests: $($testResult.TotalCount)" -ForegroundColor White
-            Write-Host "Passed: $($testResult.PassedCount)" -ForegroundColor Green
-            Write-Host "Failed: $($testResult.FailedCount)" -ForegroundColor Red
-            Write-Host "Skipped: $($testResult.SkippedCount)" -ForegroundColor Yellow
-            
-            if ($testResult.FailedCount -gt 0) {
-              Write-Host "`n❌ Some tests failed" -ForegroundColor Red
-              exit 1
-            }
           } else {
-            Write-Host "`n⚠️  No Pester test files found (*.Tests.ps1)" -ForegroundColor Yellow
+            Write-Output "✅ All tests passed"
           }
-          
-          Write-Host "`n✅ All PowerShell tests completed successfully!" -ForegroundColor Green
           
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -292,7 +263,7 @@ jobs:
           echo "| Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Key Features 🔧" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Less strict PSScriptAnalyzer (errors only)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Manual PowerShell setup (no external actions)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Multi-OS testing (Ubuntu, Windows, macOS)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ PowerShell version matrix" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ SARIF security reporting" >> $GITHUB_STEP_SUMMARY

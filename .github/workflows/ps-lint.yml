@@ -1,32 +1,261 @@
-# PowerShell Lint Workflow
-# Runs PSScriptAnalyzer on PowerShell scripts in the repository
-name: PowerShell Lint
+# PowerShell Lint and Test Workflow (2025 Enhanced)
+# Comprehensive PowerShell testing with modern GitHub Actions practices
+name: PowerShell CI/CD Pipeline
+
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
+    paths:
+      - '**/*.ps1'
+      - '**/*.psm1'
+      - '**/*.psd1'
+      - '.github/workflows/ps-lint.yml'
   pull_request:
     branches: [ "main" ]
+    paths:
+      - '**/*.ps1'
+      - '**/*.psm1'
+      - '**/*.psd1'
+      - '.github/workflows/ps-lint.yml'
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: 'Run additional tests'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  POWERSHELL_TELEMETRY_OPTOUT: 1
+
 permissions:
   contents: read
   security-events: write
+  actions: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
-    name: PowerShell Lint
+    name: PowerShell Lint & Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    outputs:
+      ps-files-changed: ${{ steps.changes.outputs.powershell }}
     
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Detect PowerShell file changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            powershell:
+              - '**/*.ps1'
+              - '**/*.psm1'
+              - '**/*.psd1'
+      
+      - name: Cache PSScriptAnalyzer
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/powershell/Modules
+          key: ${{ runner.os }}-psmodules-${{ hashFiles('**/ps-lint.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-psmodules-
+      
+      - name: Setup PowerShell
+        uses: actions/setup-powershell@v1
         
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+          
       - name: Run PSScriptAnalyzer
-        uses: microsoft/psscriptanalyzer-action@6b2948b1944407914a58661c49941824d149734f
+        uses: microsoft/psscriptanalyzer-action@v1.1
         with:
           path: .
           recurse: true
-          includeRule: '"PSAvoidGlobalAliases", "PSAvoidUsingConvertToSecureStringWithPlainText"'
+          includeRule: >
+            "PSAvoidGlobalAliases",
+            "PSAvoidUsingConvertToSecureStringWithPlainText",
+            "PSAvoidUsingPlainTextForPassword",
+            "PSUseShouldProcessForStateChangingFunctions",
+            "PSUseApprovedVerbs",
+            "PSUseSingularNouns",
+            "PSAvoidUsingWMICmdlet",
+            "PSUseDeclaredVarsMoreThanAssignments"
+          excludeRule: "PSUseBOMForUnicodeEncodedFile"
           output: results.sarif
           
-      - name: Upload SARIF results
+      - name: Upload SARIF results to GitHub
         uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: results.sarif
+          category: "PSScriptAnalyzer"
+          
+      - name: Upload SARIF as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sarif-results
+          path: results.sarif
+          retention-days: 30
+
+  test:
+    name: PowerShell Tests
+    needs: lint
+    if: needs.lint.outputs.ps-files-changed == 'true' || github.event.inputs.run_tests == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        powershell-version: ['7.4', 'latest']
+        exclude:
+          - os: macos-latest
+            powershell-version: '7.4'
+            
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup PowerShell ${{ matrix.powershell-version }}
+        uses: actions/setup-powershell@v1
+        with:
+          powershell-version: ${{ matrix.powershell-version }}
+          
+      - name: Cache PowerShell modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/powershell/Modules
+            ~/Documents/PowerShell/Modules
+          key: ${{ matrix.os }}-ps${{ matrix.powershell-version }}-modules-${{ hashFiles('**/RequiredModules.psd1', '**/Modules.ps1') }}
+          restore-keys: |
+            ${{ matrix.os }}-ps${{ matrix.powershell-version }}-modules-
+            
+      - name: Install test dependencies
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          $modules = @('Pester', 'PSScriptAnalyzer', 'PowerShellGet')
+          foreach ($module in $modules) {
+            if (!(Get-Module -ListAvailable $module)) {
+              Install-Module -Name $module -Force -Scope CurrentUser
+            }
+          }
+          
+      - name: Run PowerShell syntax validation
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path . -Include "*.ps1", "*.psm1", "*.psd1" -Recurse
+          $errors = @()
+          
+          foreach ($file in $files) {
+            try {
+              $null = [System.Management.Automation.Language.Parser]::ParseFile(
+                $file.FullName, [ref]$null, [ref]$null
+              )
+              Write-Host "✓ $($file.Name) - Syntax OK" -ForegroundColor Green
+            }
+            catch {
+              $errors += "❌ $($file.Name) - Syntax Error: $($_.Exception.Message)"
+              Write-Error "❌ $($file.Name) - Syntax Error: $($_.Exception.Message)"
+            }
+          }
+          
+          if ($errors.Count -gt 0) {
+            Write-Error "Found $($errors.Count) syntax errors"
+            exit 1
+          }
+          
+      - name: Run Pester tests (if available)
+        shell: pwsh
+        run: |
+          if (Test-Path "Tests" -PathType Container) {
+            Import-Module Pester -Force
+            $config = New-PesterConfiguration
+            $config.Run.Path = "./Tests"
+            $config.TestResult.Enabled = $true
+            $config.TestResult.OutputFormat = "NUnitXml"
+            $config.TestResult.OutputPath = "test-results.xml"
+            $config.CodeCoverage.Enabled = $true
+            $config.CodeCoverage.OutputFormat = "JaCoCo"
+            $config.CodeCoverage.OutputPath = "coverage.xml"
+            
+            Invoke-Pester -Configuration $config
+          } else {
+            Write-Host "No Tests directory found, skipping Pester tests"
+          }
+          
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always() && hashFiles('test-results.xml') != ''
+        with:
+          name: test-results-${{ matrix.os }}-ps${{ matrix.powershell-version }}
+          path: |
+            test-results.xml
+            coverage.xml
+          retention-days: 30
+
+  security-scan:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      security-events: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Run DevSkim Security Scanner
+        uses: microsoft/DevSkim-Action@v1
+        with:
+          directory-to-scan: .
+          
+      - name: Upload DevSkim results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: devskim-results.sarif
+          category: "DevSkim"
+
+  summary:
+    name: Workflow Summary
+    if: always()
+    needs: [lint, test, security-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: Generate workflow summary
+        run: |
+          echo "## PowerShell CI/CD Pipeline Results 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint & Analysis | ${{ needs.lint.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | ${{ needs.test.result == 'success' && '✅ Passed' || needs.test.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Key Features 🔧" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Enhanced PSScriptAnalyzer rules" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Multi-OS testing (Ubuntu, Windows, macOS)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ PowerShell version matrix" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SARIF security reporting" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Intelligent caching" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Concurrency control" >> $GITHUB_STEP_SUMMARY

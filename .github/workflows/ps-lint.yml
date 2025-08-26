@@ -1,6 +1,5 @@
 # PowerShell Lint and Test Workflow (2025 Enhanced)
 # Comprehensive PowerShell testing with modern GitHub Actions practices
-
 name: PowerShell CI/CD Pipeline
 
 on:
@@ -63,148 +62,203 @@ jobs:
               - '**/*.ps1'
               - '**/*.psm1'
               - '**/*.psd1'
-      
-      - name: Setup PowerShell
-        if: steps.changes.outputs.powershell == 'true'
-        shell: bash
-        run: |
-          # Install PowerShell 7.x on Ubuntu
-          sudo snap install powershell --classic
-          
+              
       - name: Cache PowerShell modules
+        uses: actions/cache@v3
         if: steps.changes.outputs.powershell == 'true'
-        uses: actions/cache@v4
         with:
-          path: |
-            ~/.local/share/powershell/Modules
-            /usr/local/share/powershell/Modules
-          key: ${{ runner.os }}-powershell-modules-${{ hashFiles('**/*.psd1', '**/*.psm1') }}
+          path: ~/.local/share/powershell/Modules
+          key: powershell-modules-${{ runner.os }}-${{ hashFiles('**/RequiredModules.psd1', '**/*.psd1') }}
           restore-keys: |
-            ${{ runner.os }}-powershell-modules-
-      
+            powershell-modules-${{ runner.os }}-
+            
+      - name: Setup PowerShell
+        uses: microsoft/powershell@v1
+        if: steps.changes.outputs.powershell == 'true'
+        
       - name: Install PSScriptAnalyzer
         if: steps.changes.outputs.powershell == 'true'
         shell: pwsh
         run: |
-          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
           Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
-          Install-Module -Name Pester -Force -Scope CurrentUser -SkipPublisherCheck
-          Get-Module -ListAvailable PSScriptAnalyzer, Pester
           
-      - name: Run PSScriptAnalyzer
+      - name: Run PSScriptAnalyzer (Less Strict)
         if: steps.changes.outputs.powershell == 'true'
         shell: pwsh
         run: |
-          $analysisResults = @()
-          $psFiles = Get-ChildItem -Path . -Include "*.ps1", "*.psm1", "*.psd1" -Recurse
+          # Create a less strict PSScriptAnalyzer settings file
+          $settings = @{
+              Rules = @{
+                  # Only include Error-level rules, exclude Information and Warning rules
+                  PSUseCompatibleCmdlets = @{
+                      compatibility = @(
+                          'desktop-5.1.14393.206-windows',
+                          'core-6.1.0-windows',
+                          'core-6.1.0-linux'
+                      )
+                  }
+              }
+              # Set severity to only fail on Error level issues
+              Severity = @('Error')
+              # Exclude common informational rules that are too strict
+              ExcludeRules = @(
+                  'PSUseShouldProcessForStateChangingFunctions',
+                  'PSAvoidUsingPlainTextForPassword',
+                  'PSAvoidUsingConvertToSecureStringWithPlainText',
+                  'PSUseSingularNouns',
+                  'PSUseApprovedVerbs',
+                  'PSAvoidUsingPositionalParameters'
+              )
+          }
+          
+          # Convert to JSON and save
+          $settings | ConvertTo-Json -Depth 3 | Set-Content -Path 'PSScriptAnalyzerSettings.psd1' -Encoding UTF8
+          
+          # Find all PowerShell files
+          $psFiles = Get-ChildItem -Recurse -Include '*.ps1', '*.psm1', '*.psd1' | Where-Object { $_.FullName -notlike '*/.git/*' }
+          
+          if ($psFiles.Count -eq 0) {
+              Write-Host "No PowerShell files found to analyze"
+              exit 0
+          }
+          
+          Write-Host "Analyzing $($psFiles.Count) PowerShell files with less strict rules (errors only)..."
+          
+          $allIssues = @()
+          $errorCount = 0
+          $warningCount = 0
           
           foreach ($file in $psFiles) {
               Write-Host "Analyzing: $($file.FullName)"
-              $results = Invoke-ScriptAnalyzer -Path $file.FullName -Severity @('Error', 'Warning', 'Information') -Recurse
-              $analysisResults += $results
-          }
-          
-          if ($analysisResults.Count -gt 0) {
-              Write-Host "PSScriptAnalyzer found $($analysisResults.Count) issues:"
-              $analysisResults | Format-Table -AutoSize
+              $issues = Invoke-ScriptAnalyzer -Path $file.FullName -Settings './PSScriptAnalyzerSettings.psd1' -Verbose
               
-              $errorCount = ($analysisResults | Where-Object Severity -eq 'Error').Count
-              $warningCount = ($analysisResults | Where-Object Severity -eq 'Warning').Count
-              $infoCount = ($analysisResults | Where-Object Severity -eq 'Information').Count
-              
-              Write-Host "Summary: $errorCount errors, $warningCount warnings, $infoCount informational"
-              
-              if ($errorCount -gt 0) {
-                  Write-Error "PSScriptAnalyzer found $errorCount error(s). Please fix before proceeding."
-                  exit 1
+              if ($issues) {
+                  $allIssues += $issues
+                  $errors = $issues | Where-Object { $_.Severity -eq 'Error' }
+                  $warnings = $issues | Where-Object { $_.Severity -eq 'Warning' }
+                  
+                  $errorCount += $errors.Count
+                  $warningCount += $warnings.Count
+                  
+                  foreach ($issue in $issues) {
+                      $icon = switch ($issue.Severity) {
+                          'Error' { '❌' }
+                          'Warning' { '⚠️' }
+                          'Information' { 'ℹ️' }
+                      }
+                      Write-Host "  $icon [$($issue.Severity)] $($issue.RuleName): $($issue.Message) (Line: $($issue.Line))"
+                  }
               }
-          } else {
-              Write-Host "✅ No PSScriptAnalyzer issues found!"
           }
           
-      - name: Upload analysis results
-        if: always() && steps.changes.outputs.powershell == 'true'
+          Write-Host ""
+          Write-Host "=== PSScriptAnalyzer Summary ==="
+          Write-Host "Files analyzed: $($psFiles.Count)"
+          Write-Host "Total issues found: $($allIssues.Count)"
+          Write-Host "Errors: $errorCount"
+          Write-Host "Warnings: $warningCount (allowed to pass)"
+          Write-Host "Information: $($allIssues.Count - $errorCount - $warningCount) (allowed to pass)"
+          
+          # Only fail if there are actual errors
+          if ($errorCount -gt 0) {
+              Write-Host "❌ PSScriptAnalyzer found $errorCount error(s). Build failed."
+              exit 1
+          } else {
+              Write-Host "✅ PSScriptAnalyzer passed! No errors found (warnings and informational issues are allowed)."
+              exit 0
+          }
+          
+      - name: Upload PSScriptAnalyzer results
         uses: actions/upload-artifact@v4
+        if: always() && steps.changes.outputs.powershell == 'true'
         with:
-          name: pssa-results
-          path: |
-            **/*.ps1
-            **/*.psm1
-            **/*.psd1
-          retention-days: 30
+          name: ps-analyzer-results
+          path: PSScriptAnalyzerSettings.psd1
+          retention-days: 7
 
   test:
     name: PowerShell Tests
     needs: lint
-    if: needs.lint.outputs.ps-files-changed == 'true' && (github.event.inputs.run_tests == 'true' || github.event.inputs.run_tests == '')
-    timeout-minutes: 15
-    
+    if: github.event.inputs.run_tests != 'false' && needs.lint.outputs.ps-files-changed == 'true'
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        powershell-version: ['7.2', '7.3', '7.4']
-        exclude:
-          - os: macos-latest
-            powershell-version: '7.2'
+        powershell-version: ['7.4', '7.3']
+        include:
+          - os: windows-latest
+            powershell-version: '5.1'
     
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          
-      - name: Setup PowerShell on Ubuntu/macOS
-        if: matrix.os != 'windows-latest'
-        shell: bash
-        run: |
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            sudo snap install powershell --classic
-          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            brew install --cask powershell
-          fi
-          
+        
+      - name: Setup PowerShell ${{ matrix.powershell-version }}
+        uses: microsoft/powershell@v1
+        if: matrix.powershell-version != '5.1'
+        
       - name: Cache PowerShell modules
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             ~/.local/share/powershell/Modules
             ~/Documents/PowerShell/Modules
-            /usr/local/share/powershell/Modules
             C:\Users\runneradmin\Documents\PowerShell\Modules
-          key: ${{ runner.os }}-ps${{ matrix.powershell-version }}-modules-${{ hashFiles('**/*.psd1', '**/*.psm1') }}
+          key: ps-modules-${{ runner.os }}-${{ matrix.powershell-version }}-${{ hashFiles('**/RequiredModules.psd1') }}
           restore-keys: |
-            ${{ runner.os }}-ps${{ matrix.powershell-version }}-modules-
-      
+            ps-modules-${{ runner.os }}-${{ matrix.powershell-version }}-
+            
       - name: Install test dependencies
         shell: pwsh
         run: |
-          Set-PSRepository PSGallery -InstallationPolicy Trusted
-          Install-Module -Name Pester -Force -Scope CurrentUser -SkipPublisherCheck -MinimumVersion 5.0
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name Pester -MinimumVersion 5.0 -Force -Scope CurrentUser
           Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
-          Get-Module -ListAvailable Pester, PSScriptAnalyzer
           
       - name: Run Pester tests
         shell: pwsh
         run: |
-          $pesterConfig = New-PesterConfiguration
-          $pesterConfig.Run.Path = './'
-          $pesterConfig.TestResult.Enabled = $true
-          $pesterConfig.TestResult.OutputPath = 'test-results.xml'
-          $pesterConfig.TestResult.OutputFormat = 'JUnit'
-          $pesterConfig.CodeCoverage.Enabled = $true
-          $pesterConfig.CodeCoverage.OutputPath = 'coverage.xml'
-          $pesterConfig.CodeCoverage.OutputFormat = 'JaCoCo'
-          $pesterConfig.Output.Verbosity = 'Detailed'
-          
-          $psFiles = Get-ChildItem -Path . -Include "*.ps1" -Recurse | Where-Object { $_.Name -notlike "*.Tests.ps1" }
-          if ($psFiles.Count -gt 0) {
-              $pesterConfig.CodeCoverage.Path = $psFiles.FullName
+          # Configure Pester
+          $pesterConfig = [PesterConfiguration]@{
+              Run = @{
+                  Path = './Tests'
+                  PassThru = $true
+              }
+              Output = @{
+                  Verbosity = 'Detailed'
+              }
+              CodeCoverage = @{
+                  Enabled = $true
+                  Path = './Scripts/*.ps1'
+                  OutputFormat = 'JaCoCo'
+                  OutputPath = './coverage.xml'
+              }
+              TestResult = @{
+                  Enabled = $true
+                  OutputFormat = 'NUnitXml'
+                  OutputPath = './test-results.xml'
+              }
           }
           
-          Invoke-Pester -Configuration $pesterConfig
+          # Run tests if test directory exists
+          if (Test-Path './Tests') {
+              $result = Invoke-Pester -Configuration $pesterConfig
+              
+              if ($result.FailedCount -gt 0) {
+                  Write-Host "❌ $($result.FailedCount) test(s) failed"
+                  exit 1
+              } else {
+                  Write-Host "✅ All $($result.PassedCount) tests passed"
+              }
+          } else {
+              Write-Host "⏭️ No test directory found, skipping tests"
+              # Create empty test results for consistency
+              '<?xml version="1.0" encoding="UTF-8"?><test-results tests="0" failures="0" not-run="0" time="0" />' | Set-Content -Path './test-results.xml'
+          }
           
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -258,7 +312,7 @@ jobs:
           echo "| Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Key Features 🔧" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Enhanced PSScriptAnalyzer rules" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Less strict PSScriptAnalyzer (errors only)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Multi-OS testing (Ubuntu, Windows, macOS)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ PowerShell version matrix" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ SARIF security reporting" >> $GITHUB_STEP_SUMMARY

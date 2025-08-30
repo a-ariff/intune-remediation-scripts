@@ -31,94 +31,135 @@ function Get-AdvancedComplianceReport {
     )
     
     try {
-        Write-Host "Starting Advanced Compliance Report generation..." -ForegroundColor Green
+        Write-Information "Starting Advanced Compliance Report generation..." -InformationAction Continue
         
         # Connect to Microsoft Graph
-        Write-Host "Connecting to Microsoft Graph..." -ForegroundColor Yellow
-        Connect-MgGraph -Scopes "DeviceManagementManagedDevices.Read.All", "DeviceManagementConfiguration.Read.All"
+        Write-Information "Connecting to Microsoft Graph..." -InformationAction Continue
+        
+        # Check if Microsoft.Graph module is installed
+        if (-not (Get-Module -ListAvailable -Name Microsoft.Graph)) {
+            Write-Information "Microsoft.Graph module not found. Installing..." -InformationAction Continue
+            Install-Module -Name Microsoft.Graph -Scope CurrentUser -Force
+        }
+        
+        # Import required modules
+        Import-Module Microsoft.Graph.Authentication
+        Import-Module Microsoft.Graph.DeviceManagement
+        
+        # Connect with required scopes
+        $RequiredScopes = @(
+            "DeviceManagementManagedDevices.Read.All",
+            "DeviceManagementConfiguration.Read.All",
+            "Directory.Read.All"
+        )
+        
+        Connect-MgGraph -Scopes $RequiredScopes -NoWelcome
+        
+        Write-Information "Successfully connected to Microsoft Graph" -InformationAction Continue
         
         # Get all managed devices
-        Write-Host "Retrieving managed devices..." -ForegroundColor Yellow
-        $devices = Get-MgDeviceManagementManagedDevice -All
+        Write-Information "Retrieving managed devices..." -InformationAction Continue
+        $ManagedDevices = Get-MgDeviceManagementManagedDevice -All
+        
+        Write-Information "Found $($ManagedDevices.Count) managed devices" -InformationAction Continue
         
         # Get compliance policies
-        Write-Host "Retrieving compliance policies..." -ForegroundColor Yellow
-        $compliancePolicies = Get-MgDeviceManagementDeviceCompliancePolicy -All
+        Write-Information "Retrieving compliance policies..." -InformationAction Continue
+        $CompliancePolicies = Get-MgDeviceManagementDeviceCompliancePolicy
         
-        # Initialize report array
-        $report = @()
+        # Initialize results array
+        $ComplianceResults = @()
         
-        foreach ($device in $devices) {
-            Write-Progress -Activity "Processing devices" -Status "Processing device: $($device.DeviceName)" -PercentComplete (($devices.IndexOf($device) / $devices.Count) * 100)
+        # Process each device
+        $DeviceCount = 0
+        foreach ($Device in $ManagedDevices) {
+            $DeviceCount++
+            Write-Information "Processing device $DeviceCount of $($ManagedDevices.Count): $($Device.DeviceName)" -InformationAction Continue
             
             # Get device compliance status
-            $complianceStatus = Get-MgDeviceManagementManagedDeviceCompliancePolicyState -ManagedDeviceId $device.Id
+            $ComplianceStatus = Get-MgDeviceManagementManagedDeviceDeviceCompliancePolicyState -ManagedDeviceId $Device.Id
+            
+            # Get device configuration status
+            $ConfigurationStatus = Get-MgDeviceManagementManagedDeviceDeviceConfigurationState -ManagedDeviceId $Device.Id
             
             # Create device report object
-            $deviceReport = [PSCustomObject]@{
-                DeviceName = $device.DeviceName
-                DeviceId = $device.Id
-                UserId = $device.UserId
-                UserPrincipalName = $device.UserPrincipalName
-                OperatingSystem = $device.OperatingSystem
-                OSVersion = $device.OsVersion
-                DeviceType = $device.DeviceType
-                ManagementAgent = $device.ManagementAgent
-                ComplianceState = $device.ComplianceState
-                LastSyncDateTime = $device.LastSyncDateTime
-                EnrolledDateTime = $device.EnrolledDateTime
-                JailBroken = $device.JailBroken
-                DeviceEnrollmentType = $device.DeviceEnrollmentType
-                ManagementState = $device.ManagementState
-                DeviceRegistrationState = $device.DeviceRegistrationState
-                CompliancePoliciesCount = $complianceStatus.Count
-                NonCompliantPolicies = ($complianceStatus | Where-Object { $_.State -eq 'nonCompliant' }).Count
-                ErrorPolicies = ($complianceStatus | Where-Object { $_.State -eq 'error' }).Count
-                UnknownPolicies = ($complianceStatus | Where-Object { $_.State -eq 'unknown' }).Count
-                ReportGeneratedDate = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+            $DeviceReport = [PSCustomObject]@{
+                DeviceName = $Device.DeviceName
+                DeviceId = $Device.Id
+                UserPrincipalName = $Device.UserPrincipalName
+                Platform = $Device.OperatingSystem
+                OSVersion = $Device.OsVersion
+                ComplianceState = $Device.ComplianceState
+                LastSyncDateTime = $Device.LastSyncDateTime
+                EnrollmentDateTime = $Device.EnrolledDateTime
+                ManagementAgent = $Device.ManagementAgent
+                DeviceType = $Device.DeviceType
+                Manufacturer = $Device.Manufacturer
+                Model = $Device.Model
+                SerialNumber = $Device.SerialNumber
+                TotalStorageSpaceInBytes = $Device.TotalStorageSpaceInBytes
+                FreeStorageSpaceInBytes = $Device.FreeStorageSpaceInBytes
+                CompliancePoliciesCount = $ComplianceStatus.Count
+                ConfigurationPoliciesCount = $ConfigurationStatus.Count
+                IsEncrypted = $Device.IsEncrypted
+                IsSupervised = $Device.IsSupervised
+                ExchangeAccessState = $Device.ExchangeAccessState
+                ExchangeAccessStateReason = $Device.ExchangeAccessStateReason
             }
             
-            $report += $deviceReport
+            $ComplianceResults += $DeviceReport
         }
         
-        Write-Progress -Activity "Processing devices" -Completed
+        Write-Information "Device processing completed. Generating report..." -InformationAction Continue
         
-        # Export report based on format
+        # Generate output based on format
         switch ($Format) {
             "CSV" {
-                $report | Export-Csv -Path $OutputPath -NoTypeInformation
-                Write-Host "Report exported to: $OutputPath" -ForegroundColor Green
+                $ComplianceResults | Export-Csv -Path $OutputPath -NoTypeInformation
+                Write-Information "CSV report saved to: $OutputPath" -InformationAction Continue
             }
             "JSON" {
-                $report | ConvertTo-Json -Depth 3 | Out-File -FilePath $OutputPath -Encoding UTF8
-                Write-Host "Report exported to: $OutputPath" -ForegroundColor Green
+                $ComplianceResults | ConvertTo-Json -Depth 3 | Out-File -FilePath $OutputPath -Encoding UTF8
+                Write-Information "JSON report saved to: $OutputPath" -InformationAction Continue
             }
             "HTML" {
-                $htmlReport = $report | ConvertTo-Html -Title "Advanced Compliance Report" -PreContent "<h1>Advanced Compliance Report</h1><p>Generated on: $(Get-Date)</p>"
-                $htmlReport | Out-File -FilePath $OutputPath -Encoding UTF8
-                Write-Host "Report exported to: $OutputPath" -ForegroundColor Green
+                $HtmlReport = $ComplianceResults | ConvertTo-Html -Title "Advanced Compliance Report" -Head "<style>table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:8px;text-align:left;}th{background-color:#f2f2f2;}</style>"
+                $HtmlReport | Out-File -FilePath $OutputPath -Encoding UTF8
+                Write-Information "HTML report saved to: $OutputPath" -InformationAction Continue
             }
         }
         
-        # Display summary
-        Write-Host "`nReport Summary:" -ForegroundColor Cyan
-        Write-Host "Total Devices: $($report.Count)" -ForegroundColor White
-        Write-Host "Compliant Devices: $(($report | Where-Object { $_.ComplianceState -eq 'compliant' }).Count)" -ForegroundColor Green
-        Write-Host "Non-Compliant Devices: $(($report | Where-Object { $_.ComplianceState -eq 'noncompliant' }).Count)" -ForegroundColor Red
-        Write-Host "Unknown State Devices: $(($report | Where-Object { $_.ComplianceState -eq 'unknown' }).Count)" -ForegroundColor Yellow
+        # Generate summary
+        $TotalDevices = $ComplianceResults.Count
+        $CompliantDevices = ($ComplianceResults | Where-Object { $_.ComplianceState -eq "Compliant" }).Count
+        $NonCompliantDevices = ($ComplianceResults | Where-Object { $_.ComplianceState -eq "Noncompliant" }).Count
+        $UnknownDevices = ($ComplianceResults | Where-Object { $_.ComplianceState -eq "Unknown" }).Count
         
-        return $report
+        Write-Information "=== COMPLIANCE REPORT SUMMARY ===" -InformationAction Continue
+        Write-Information "Total Devices: $TotalDevices" -InformationAction Continue
+        Write-Information "Compliant Devices: $CompliantDevices" -InformationAction Continue
+        Write-Information "Non-Compliant Devices: $NonCompliantDevices" -InformationAction Continue
+        Write-Information "Unknown Status Devices: $UnknownDevices" -InformationAction Continue
+        Write-Information "Report saved to: $OutputPath" -InformationAction Continue
         
-    } catch {
+        return $ComplianceResults
+        
+    }
+    catch {
         Write-Error "Error generating compliance report: $($_.Exception.Message)"
         throw
-    } finally {
+    }
+    finally {
         # Disconnect from Microsoft Graph
-        Disconnect-MgGraph -ErrorAction SilentlyContinue
+        try {
+            Disconnect-MgGraph
+            Write-Information "Disconnected from Microsoft Graph" -InformationAction Continue
+        }
+        catch {
+            Write-Warning "Failed to disconnect from Microsoft Graph: $($_.Exception.Message)"
+        }
     }
 }
 
-# Execute the function if script is run directly
-if ($MyInvocation.InvocationName -eq $MyInvocation.MyCommand.Name) {
-    Get-AdvancedComplianceReport
-}
+# Export the function
+Export-ModuleMember -Function Get-AdvancedComplianceReport

@@ -1,43 +1,36 @@
 <#
 .SYNOPSIS
     Get-IntuneDeviceReport.ps1 - Generate comprehensive Intune device compliance and inventory report
-
 .DESCRIPTION
     This script connects to Microsoft Graph API to retrieve detailed information about
     Intune-managed devices including compliance status, hardware inventory, and policies.
     Exports results to CSV format for analysis and reporting.
-
 .PARAMETER TenantId
     Azure AD Tenant ID
-
 .PARAMETER ClientId
     Azure AD Application (Client) ID with appropriate Graph permissions
-
-.PARAMETER ClientSecret
-    Azure AD Application Client Secret
-
+.PARAMETER CertificateThumbprint
+    Certificate thumbprint for certificate-based authentication
 .PARAMETER OutputPath
     Path where the CSV report will be saved (default: current directory)
-
 .PARAMETER IncludeNonCompliant
     Switch to include only non-compliant devices in the report
-
 .EXAMPLE
-    .\Get-IntuneDeviceReport.ps1 -TenantId "your-tenant-id" -ClientId "your-client-id" -ClientSecret "your-secret"
-
+    .\Get-IntuneDeviceReport.ps1 -TenantId "your-tenant-id" -ClientId "your-client-id" -CertificateThumbprint "your-cert-thumbprint"
 .EXAMPLE
-    .\Get-IntuneDeviceReport.ps1 -TenantId "your-tenant-id" -ClientId "your-client-id" -ClientSecret "your-secret" -IncludeNonCompliant
-
+    .\Get-IntuneDeviceReport.ps1 -TenantId "your-tenant-id" -ClientId "your-client-id" -CertificateThumbprint "your-cert-thumbprint" -IncludeNonCompliant
 .NOTES
     Required Graph API Permissions:
     - DeviceManagementManagedDevices.Read.All
     - DeviceManagementConfiguration.Read.All
     
+    Certificate-based authentication is more secure than using client secrets.
+    
     Author: Microsoft Graph API Scripts
-    Version: 1.0
-    Date: $(Get-Date -Format 'yyyy-MM-dd')
+    Version: 2.0 - Updated to use certificate-based authentication
 #>
 
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$TenantId,
@@ -46,10 +39,10 @@ param(
     [string]$ClientId,
     
     [Parameter(Mandatory = $true)]
-    [string]$ClientSecret,
+    [string]$CertificateThumbprint,
     
     [Parameter(Mandatory = $false)]
-    [string]$OutputPath = ".",
+    [string]$OutputPath = "./",
     
     [Parameter(Mandatory = $false)]
     [switch]$IncludeNonCompliant
@@ -59,239 +52,110 @@ param(
 try {
     Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
     Import-Module Microsoft.Graph.DeviceManagement -ErrorAction Stop
-    Write-Host "Required modules imported successfully" -ForegroundColor Green
+    Write-Information "Required modules imported successfully" -InformationAction Continue
 }
 catch {
-    Write-Error "Failed to import required modules. Please install Microsoft.Graph modules: Install-Module Microsoft.Graph"
+    Write-Error "Failed to import required modules: $($_.Exception.Message)"
     exit 1
 }
 
-# Function to connect to Microsoft Graph
-function Connect-ToGraph {
-    param(
-        [string]$TenantId,
-        [string]$ClientId,
-        [string]$ClientSecret
-    )
+# Connect to Microsoft Graph using certificate-based authentication
+try {
+    Write-Information "Connecting to Microsoft Graph..." -InformationAction Continue
     
-    try {
-        $SecureSecret = ConvertTo-SecureString $ClientSecret -AsPlainText -Force
-        $Credential = New-Object System.Management.Automation.PSCredential($ClientId, $SecureSecret)
-        
-        Connect-MgGraph -TenantId $TenantId -ClientSecretCredential $Credential -NoWelcome
-        Write-Host "Successfully connected to Microsoft Graph" -ForegroundColor Green
-        return $true
-    }
-    catch {
-        Write-Error "Failed to connect to Microsoft Graph: $($_.Exception.Message)"
-        return $false
-    }
+    Connect-MgGraph -TenantId $TenantId -ClientId $ClientId -CertificateThumbprint $CertificateThumbprint -NoWelcome
+    
+    Write-Information "Successfully connected to Microsoft Graph" -InformationAction Continue
+}
+catch {
+    Write-Error "Failed to connect to Microsoft Graph: $($_.Exception.Message)"
+    exit 1
 }
 
-# Function to get all managed devices
-function Get-IntuneDevices {
-    try {
-        Write-Host "Retrieving Intune managed devices..." -ForegroundColor Yellow
-        
-        $devices = Get-MgDeviceManagementManagedDevice -All
-        Write-Host "Retrieved $($devices.Count) devices" -ForegroundColor Green
-        
-        return $devices
-    }
-    catch {
-        Write-Error "Failed to retrieve devices: $($_.Exception.Message)"
-        return $null
-    }
+# Get all managed devices
+try {
+    Write-Information "Retrieving Intune managed devices..." -InformationAction Continue
+    
+    $devices = Get-MgDeviceManagementManagedDevice -All
+    
+    Write-Information "Retrieved $($devices.Count) devices" -InformationAction Continue
+}
+catch {
+    Write-Error "Failed to retrieve devices: $($_.Exception.Message)"
+    Disconnect-MgGraph
+    exit 1
 }
 
-# Function to get device compliance policies
-function Get-DeviceCompliancePolicies {
-    try {
-        Write-Host "Retrieving device compliance policies..." -ForegroundColor Yellow
-        
-        $policies = Get-MgDeviceManagementDeviceCompliancePolicy -All
-        Write-Host "Retrieved $($policies.Count) compliance policies" -ForegroundColor Green
-        
-        return $policies
-    }
-    catch {
-        Write-Error "Failed to retrieve compliance policies: $($_.Exception.Message)"
-        return $null
-    }
-}
+# Process device data
+$deviceReport = @()
 
-# Function to process device data and create report
-function New-DeviceReport {
-    param(
-        [array]$Devices,
-        [array]$CompliancePolicies,
-        [bool]$NonCompliantOnly
-    )
-    
-    $report = @()
-    $totalDevices = $devices.Count
-    $processedCount = 0
-    
-    foreach ($device in $devices) {
-        $processedCount++
-        Write-Progress -Activity "Processing Devices" -Status "Device $processedCount of $totalDevices" -PercentComplete (($processedCount / $totalDevices) * 100)
-        
-        # Skip compliant devices if only non-compliant requested
-        if ($NonCompliantOnly -and $device.ComplianceState -eq "compliant") {
+foreach ($device in $devices) {
+    try {
+        # Filter for non-compliant devices if specified
+        if ($IncludeNonCompliant -and $device.ComplianceState -eq "Compliant") {
             continue
         }
         
-        # Create device report object
-        $deviceReport = [PSCustomObject]@{
+        $deviceInfo = [PSCustomObject]@{
             DeviceName = $device.DeviceName
             UserPrincipalName = $device.UserPrincipalName
-            UserDisplayName = $device.UserDisplayName
-            DeviceId = $device.Id
-            SerialNumber = $device.SerialNumber
-            Manufacturer = $device.Manufacturer
-            Model = $device.Model
             OperatingSystem = $device.OperatingSystem
             OSVersion = $device.OSVersion
             ComplianceState = $device.ComplianceState
-            DeviceEnrollmentType = $device.DeviceEnrollmentType
-            ManagementAgent = $device.ManagementAgent
-            IsEncrypted = $device.IsEncrypted
-            IsSupervised = $device.IsSupervised
-            ExchangeAccessState = $device.ExchangeAccessState
-            ExchangeAccessStateReason = $device.ExchangeAccessStateReason
             LastSyncDateTime = $device.LastSyncDateTime
-            EasActivated = $device.EasActivated
-            AzureADRegistered = $device.AzureADRegistered
-            DeviceRegistrationState = $device.DeviceRegistrationState
-            DeviceCategoryDisplayName = $device.DeviceCategoryDisplayName
-            IsRooted = $device.IsRooted
-            ManagementState = $device.ManagementState
-            EmailAddress = $device.EmailAddress
+            EnrolledDateTime = $device.EnrolledDateTime
+            Manufacturer = $device.Manufacturer
+            Model = $device.Model
+            SerialNumber = $device.SerialNumber
+            IMEI = $device.Imei
             WiFiMacAddress = $device.WiFiMacAddress
             EthernetMacAddress = $device.EthernetMacAddress
-            TotalStorageSpaceInBytes = [math]::Round($device.TotalStorageSpaceInBytes / 1GB, 2)
-            FreeStorageSpaceInBytes = [math]::Round($device.FreeStorageSpaceInBytes / 1GB, 2)
-            IMEI = $device.IMEI
-            MEID = $device.MEID
-            SubscriberCarrier = $device.SubscriberCarrier
-            PhoneNumber = $device.PhoneNumber
-            AndroidSecurityPatchLevel = $device.AndroidSecurityPatchLevel
-            ConfigurationManagerClientEnabledFeatures = $device.ConfigurationManagerClientEnabledFeatures
+            TotalStorageSpaceInBytes = $device.TotalStorageSpaceInBytes
+            FreeStorageSpaceInBytes = $device.FreeStorageSpaceInBytes
+            ManagedDeviceOwnerType = $device.ManagedDeviceOwnerType
+            DeviceEnrollmentType = $device.DeviceEnrollmentType
+            AzureADRegistered = $device.AzureADRegistered
+            AzureADDeviceId = $device.AzureADDeviceId
+            DeviceRegistrationState = $device.DeviceRegistrationState
         }
         
-        $report += $deviceReport
-    }
-    
-    Write-Progress -Activity "Processing Devices" -Completed
-    return $report
-}
-
-# Function to export report to CSV
-function Export-ReportToCsv {
-    param(
-        [array]$ReportData,
-        [string]$OutputPath,
-        [bool]$NonCompliantOnly
-    )
-    
-    $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
-    $suffix = if ($NonCompliantOnly) { "_NonCompliant" } else { "_All" }
-    $fileName = "IntuneDeviceReport$suffix`_$timestamp.csv"
-    $fullPath = Join-Path $OutputPath $fileName
-    
-    try {
-        $ReportData | Export-Csv -Path $fullPath -NoTypeInformation -Encoding UTF8
-        Write-Host "Report exported successfully to: $fullPath" -ForegroundColor Green
-        Write-Host "Total devices in report: $($ReportData.Count)" -ForegroundColor Cyan
-        
-        return $fullPath
+        $deviceReport += $deviceInfo
     }
     catch {
-        Write-Error "Failed to export report: $($_.Exception.Message)"
-        return $null
+        Write-Warning "Error processing device $($device.DeviceName): $($_.Exception.Message)"
+        continue
     }
 }
 
-# Function to display summary statistics
-function Show-ReportSummary {
-    param([array]$ReportData)
-    
-    Write-Host "`n=== INTUNE DEVICE REPORT SUMMARY ===" -ForegroundColor Cyan
-    Write-Host "Total Devices: $($ReportData.Count)" -ForegroundColor White
-    
-    # Compliance Summary
-    $complianceStats = $ReportData | Group-Object ComplianceState
-    Write-Host "`nCompliance Status:" -ForegroundColor Yellow
-    foreach ($stat in $complianceStats) {
-        $percentage = [math]::Round(($stat.Count / $ReportData.Count) * 100, 1)
-        Write-Host "  $($stat.Name): $($stat.Count) ($percentage%)" -ForegroundColor White
-    }
-    
-    # OS Summary
-    $osStats = $ReportData | Group-Object OperatingSystem
-    Write-Host "`nOperating Systems:" -ForegroundColor Yellow
-    foreach ($stat in $osStats) {
-        $percentage = [math]::Round(($stat.Count / $ReportData.Count) * 100, 1)
-        Write-Host "  $($stat.Name): $($stat.Count) ($percentage%)" -ForegroundColor White
-    }
-    
-    # Encryption Summary
-    $encryptionStats = $ReportData | Group-Object IsEncrypted
-    Write-Host "`nDevice Encryption:" -ForegroundColor Yellow
-    foreach ($stat in $encryptionStats) {
-        $percentage = [math]::Round(($stat.Count / $ReportData.Count) * 100, 1)
-        $encryptionStatus = if ($stat.Name -eq "True") { "Encrypted" } else { "Not Encrypted" }
-        Write-Host "  $encryptionStatus: $($stat.Count) ($percentage%)" -ForegroundColor White
-    }
-    
-    Write-Host "`n====================================" -ForegroundColor Cyan
-}
-
-# Main execution
-Write-Host "Starting Intune Device Report Generation..." -ForegroundColor Cyan
-Write-Host "Timestamp: $(Get-Date)" -ForegroundColor Gray
-
-# Connect to Microsoft Graph
-if (-not (Connect-ToGraph -TenantId $TenantId -ClientId $ClientId -ClientSecret $ClientSecret)) {
-    Write-Error "Unable to connect to Microsoft Graph. Exiting."
-    exit 1
-}
-
-# Get devices and compliance policies
-$devices = Get-IntuneDevices
-if (-not $devices) {
-    Write-Error "No devices retrieved. Exiting."
-    Disconnect-MgGraph
-    exit 1
-}
-
-$compliancePolicies = Get-DeviceCompliancePolicies
-
-# Generate report
-Write-Host "Generating device report..." -ForegroundColor Yellow
-$reportData = New-DeviceReport -Devices $devices -CompliancePolicies $compliancePolicies -NonCompliantOnly $IncludeNonCompliant.IsPresent
-
-if ($reportData.Count -eq 0) {
-    Write-Warning "No devices match the specified criteria."
-    Disconnect-MgGraph
-    exit 0
-}
-
-# Export report
-$exportedFile = Export-ReportToCsv -ReportData $reportData -OutputPath $OutputPath -NonCompliantOnly $IncludeNonCompliant.IsPresent
-
-if ($exportedFile) {
-    # Display summary
-    Show-ReportSummary -ReportData $reportData
-    
-    Write-Host "`nReport generation completed successfully!" -ForegroundColor Green
-    Write-Host "File location: $exportedFile" -ForegroundColor Cyan
+# Generate output file name with timestamp
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+if ($IncludeNonCompliant) {
+    $fileName = "IntuneDeviceReport_NonCompliant_$timestamp.csv"
 } else {
-    Write-Error "Failed to export report."
+    $fileName = "IntuneDeviceReport_All_$timestamp.csv"
 }
 
-# Cleanup
-Disconnect-MgGraph
-Write-Host "Disconnected from Microsoft Graph" -ForegroundColor Gray
+$fullPath = Join-Path $OutputPath $fileName
 
-# End of script
+# Export to CSV
+try {
+    $deviceReport | Export-Csv -Path $fullPath -NoTypeInformation -Encoding UTF8
+    
+    Write-Information "Report generated successfully: $fullPath" -InformationAction Continue
+    Write-Information "Total devices in report: $($deviceReport.Count)" -InformationAction Continue
+    
+    if ($IncludeNonCompliant) {
+        $nonCompliantCount = ($deviceReport | Where-Object { $_.ComplianceState -ne "Compliant" }).Count
+        Write-Information "Non-compliant devices: $nonCompliantCount" -InformationAction Continue
+    }
+}
+catch {
+    Write-Error "Failed to export report: $($_.Exception.Message)"
+}
+finally {
+    # Disconnect from Microsoft Graph
+    Disconnect-MgGraph
+    Write-Information "Disconnected from Microsoft Graph" -InformationAction Continue
+}
+
+Write-Information "Script execution completed" -InformationAction Continue

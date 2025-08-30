@@ -1,0 +1,29 @@
+Browser,Version,Platform,Policy_Type,Configuration_Method,Supported,Notes,Implementation_Priority,Enterprise_Required,macOS_Version_Min,Windows_Version_Min,Config_File_Location,Management_Tool_Support
+Safari,14.0+,macOS,Managed Preferences,/usr/bin/defaults,Yes,Native macOS integration with Configuration Profiles,High,No,10.15,N/A,~/Library/Preferences/com.apple.Safari.plist,Intune|JAMF|Workspace ONE
+Safari,15.0+,macOS,Managed Preferences,/usr/bin/defaults,Yes,Enhanced privacy controls and enterprise features,High,No,11.0,N/A,~/Library/Preferences/com.apple.Safari.plist,Intune|JAMF|Workspace ONE
+Safari,16.0+,macOS,Managed Preferences,/usr/bin/defaults,Yes,Advanced password policy controls,High,No,12.0,N/A,~/Library/Preferences/com.apple.Safari.plist,Intune|JAMF|Workspace ONE
+Google Chrome,90.0+,macOS,Enterprise Policy,JSON Configuration,Yes,Requires Chrome for Business licensing,High,Yes,10.15,10,/Library/Application Support/Google/Chrome/policies/managed/,Intune|JAMF|ADUC
+Google Chrome,90.0+,Windows,Enterprise Policy,Registry/ADMX,Yes,Full GPO integration available,High,Yes,N/A,10,HKLM\SOFTWARE\Policies\Google\Chrome,Intune|SCCM|GPO
+Google Chrome,100.0+,macOS,Enterprise Policy,JSON Configuration,Yes,Enhanced security controls and reporting,High,Yes,11.0,10,/Library/Application Support/Google/Chrome/policies/managed/,Intune|JAMF|ADUC
+Google Chrome,100.0+,Windows,Enterprise Policy,Registry/ADMX,Yes,Advanced threat protection integration,High,Yes,N/A,10,HKLM\SOFTWARE\Policies\Google\Chrome,Intune|SCCM|GPO
+Mozilla Firefox,88.0+,macOS,Policy JSON,policies.json,Yes,Mozilla Enterprise Policy Engine,Medium,No,10.15,10,/Applications/Firefox.app/Contents/Resources/distribution/,Intune|JAMF|Manual
+Mozilla Firefox,88.0+,Windows,Policy JSON,policies.json,Yes,GPO templates available,Medium,No,N/A,10,%PROGRAMFILES%\Mozilla Firefox\distribution\,Intune|SCCM|GPO
+Mozilla Firefox,91.0+,macOS,Policy JSON,policies.json,Yes,ESR support with extended policy options,Medium,No,10.15,10,/Applications/Firefox.app/Contents/Resources/distribution/,Intune|JAMF|Manual
+Mozilla Firefox,91.0+,Windows,Policy JSON,policies.json,Yes,Enhanced enterprise security features,Medium,No,N/A,10,%PROGRAMFILES%\Mozilla Firefox\distribution\,Intune|SCCM|GPO
+Microsoft Edge,90.0+,macOS,Enterprise Policy,Plist/JSON,Yes,Native Microsoft 365 integration,High,Yes,10.15,10,/Library/Application Support/Microsoft Edge/policies/managed/,Intune|JAMF|ADUC
+Microsoft Edge,90.0+,Windows,Enterprise Policy,Registry/ADMX,Yes,Full Azure AD and Intune integration,High,Yes,N/A,10,HKLM\SOFTWARE\Policies\Microsoft\Edge,Intune|SCCM|GPO
+Microsoft Edge,100.0+,macOS,Enterprise Policy,Plist/JSON,Yes,Advanced conditional access support,High,Yes,11.0,10,/Library/Application Support/Microsoft Edge/policies/managed/,Intune|JAMF|ADUC
+Microsoft Edge,100.0+,Windows,Enterprise Policy,Registry/ADMX,Yes,Zero Trust architecture compatibility,High,Yes,N/A,11,HKLM\SOFTWARE\Policies\Microsoft\Edge,Intune|SCCM|GPO
+Brave Browser,1.26+,macOS,Chromium Policy,JSON Configuration,Partial,Based on Chromium policy engine - limited enterprise support,Low,No,10.15,10,/Library/Application Support/BraveSoftware/Brave-Browser/policies/managed/,Manual|Third-party
+Brave Browser,1.26+,Windows,Chromium Policy,Registry,Partial,Community-maintained enterprise policies,Low,No,N/A,10,HKLM\SOFTWARE\Policies\BraveSoftware\Brave,Manual|Third-party
+Brave Browser,1.40+,macOS,Chromium Policy,JSON Configuration,Partial,Improved policy compatibility,Low,No,11.0,10,/Library/Application Support/BraveSoftware/Brave-Browser/policies/managed/,Manual|Third-party
+Brave Browser,1.40+,Windows,Chromium Policy,Registry,Partial,Enhanced Chromium policy support,Low,No,N/A,10,HKLM\SOFTWARE\Policies\BraveSoftware\Brave,Manual|Third-party
+Opera,76.0+,macOS,Enterprise Policy,JSON Configuration,Limited,Basic enterprise features available,Low,No,10.15,10,/Library/Application Support/com.operasoftware.Opera/policies/managed/,Manual|Third-party
+Opera,76.0+,Windows,Enterprise Policy,Registry,Limited,Limited policy support compared to major browsers,Low,No,N/A,10,HKLM\SOFTWARE\Policies\Opera Software\Opera,Manual|Third-party
+Opera,85.0+,macOS,Enterprise Policy,JSON Configuration,Limited,Improved enterprise policy engine,Low,No,11.0,10,/Library/Application Support/com.operasoftware.Opera/policies/managed/,Manual|Third-party
+Opera,85.0+,Windows,Enterprise Policy,Registry,Limited,Enhanced Windows integration,Low,No,N/A,10,HKLM\SOFTWARE\Policies\Opera Software\Opera,Manual|Third-party
+Vivaldi,4.0+,macOS,Chromium Policy,JSON Configuration,Limited,Chromium-based policy support,Low,No,10.15,10,/Library/Application Support/Vivaldi/policies/managed/,Manual
+Vivaldi,4.0+,Windows,Chromium Policy,Registry,Limited,Basic Chromium policy compatibility,Low,No,N/A,10,HKLM\SOFTWARE\Policies\Vivaldi,Manual
+Arc Browser,1.0+,macOS,Limited,Configuration Profile,Limited,Emerging browser with basic enterprise support,Low,No,12.0,N/A,~/Library/Preferences/company.thebrowser.Browser.plist,Manual
+Tor Browser,11.0+,macOS,Limited,torrc configuration,No,Privacy-focused - enterprise policies not recommended,N/A,No,10.15,10,~/Library/Application Support/TorBrowser-Data/,Manual
+Tor Browser,11.0+,Windows,Limited,torrc configuration,No,Enterprise management conflicts with privacy goals,N/A,No,N/A,10,%APPDATA%\TorBrowser\Data\,Manual

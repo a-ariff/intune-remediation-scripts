@@ -1,102 +1,129 @@
 # Microsoft Intune Remediation Scripts
 
-> **Imp Update**: This file has been edited as part of a GitHub automation demonstration.
-> ⭐ **Help Us Reach Starstruck!** ⭐  
-> If you find this repository useful, please consider starring it! We're working toward the GitHub Starstruck achievement and your star helps support the project and makes it more discoverable for other IT professionals. Thank you for your support! 🚀
-
-[![PowerShell](https://img.shields.io/badge/PowerShell-5391FE?style=for-the-badge&logo=powershell&logoColor=white)](https://docs.microsoft.com/en-us/powershell/) [![Intune](https://img.shields.io/badge/Microsoft_Intune-0078D4?style=for-the-badge&logo=microsoft&logoColor=white)](https://intune.microsoft.com/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![GitHub stars](https://img.shields.io/github/stars/a-ariff/intune-remediation-scripts?style=for-the-badge&logo=github)](https://github.com/a-ariff/intune-remediation-scripts/stargazers) [![GitHub forks](https://img.shields.io/github/forks/a-ariff/intune-remediation-scripts?style=for-the-badge&logo=github)](https://github.com/a-ariff/intune-remediation-scripts/network) [![GitHub issues](https://img.shields.io/github/issues/a-ariff/intune-remediation-scripts?style=for-the-badge&logo=github)](https://github.com/a-ariff/intune-remediation-scripts/issues)
-[![GitHub last commit](https://img.shields.io/github/last-commit/a-ariff/intune-remediation-scripts?style=for-the-badge&logo=github)](https://github.com/a-ariff/intune-remediation-scripts/commits/main) [![Contributions welcome](https://img.shields.io/badge/Contributions-welcome-brightgreen.svg?style=for-the-badge)](https://github.com/a-ariff/intune-remediation-scripts/blob/main/CONTRIBUTING.md) [![Made with ❤️](https://img.shields.io/badge/Made%20with-❤️-red.svg?style=for-the-badge)](https://github.com/a-ariff)
+[![PowerShell](https://img.shields.io/badge/PowerShell-5391FE?style=for-the-badge&logo=powershell&logoColor=white)](https://docs.microsoft.com/en-us/powershell/) [![Intune](https://img.shields.io/badge/Microsoft_Intune-0078D4?style=for-the-badge&logo=microsoft&logoColor=white)](https://intune.microsoft.com/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT) [![GitHub stars](https://img.shields.io/github/stars/a-ariff/intune-remediation-scripts?style=for-the-badge&logo=github)](https://github.com/a-ariff/intune-remediation-scripts/stargazers) [![GitHub forks](https://img.shields.io/github/forks/a-ariff/intune-remediation-scripts?style=for-the-badge&logo=github)](https://github.com/a-ariff/intune-remediation-scripts/network) [![GitHub issues](https://img.shields.io/github/issues/a-ariff/intune-remediation-scripts?style=for-the-badge&logo=github)](https://github.com/a-ariff/intune-remediation-scripts/issues) [![GitHub last commit](https://img.shields.io/github/last-commit/a-ariff/intune-remediation-scripts?style=for-the-badge&logo=github)](https://github.com/a-ariff/intune-remediation-scripts/commits/main) [![Contributions welcome](https://img.shields.io/badge/Contributions-welcome-brightgreen.svg?style=for-the-badge)](https://github.com/a-ariff/intune-remediation-scripts/blob/main/CONTRIBUTING.md) [![Made with ❤️](https://img.shields.io/badge/Made%20with-❤️-red.svg?style=for-the-badge)](https://github.com/a-ariff)
 
 ## Build Status
-[![PowerShell Lint](https://github.com/a-ariff/intune-remediation-scripts/actions/workflows/ps-lint.yml/badge.svg?branch=main)](https://github.com/a-ariff/intune-remediation-scripts/actions/workflows/ps-lint.yml)
+
+[![PowerShell Lint](https://github.com/a-ariff/intune-remediation-scripts/actions/workflows/ps-lint.yml/badge.svg?branch=main)](https://github.com/a-ariff/intune-remediation-scripts/actions/workflows/ps-lint.yml) [![Link Check](https://github.com/a-ariff/intune-remediation-scripts/actions/workflows/link-check.yml/badge.svg?branch=main)](https://github.com/a-ariff/intune-remediation-scripts/actions/workflows/link-check.yml)
 
 ## Overview
+
 A comprehensive collection of Microsoft Intune remediation scripts and configurations designed for enterprise endpoint management, device compliance enforcement, and automated system fixes. This repository provides production-ready PowerShell scripts that integrate seamlessly with Intune's remediation framework.
 
 ### Key Features
+
 - **Device Compliance**: Automated scripts to detect and fix common compliance issues
-- **Security Remediation**: Security-focused fixes for endpoint vulnerabilities
+- **Security Remediation**: Security-focused fixes for endpoint vulnerabilities  
 - **Performance Optimization**: Scripts to optimize device performance and user experience
+- **Modern PowerShell**: Supports -WhatIf and ShouldProcess for safe testing
+- **Comprehensive Logging**: Standardized logging with Write-Information
 
-## 🆕 2025 Enhancements
+## Quick Start
 
-### New Directory Structure
-The repository has been significantly enhanced for 2025 with the following new directories and modern features:
+1. **Browse Examples**: Start with [`docs/examples/intune-import/`](docs/examples/intune-import/) for a complete detection/remediation pair
+2. **Test Scripts**: Always run with `-WhatIf` parameter first to preview changes safely
+3. **Deploy via Intune**: Follow the [deployment guide](docs/deployment-guide.md) for step-by-step Intune configuration
 
-#### 📁 `/ai-assisted-remediation/`
-- **AI-Powered Diagnostics**: Machine learning-enhanced detection scripts
-- **Intelligent Response**: Context-aware remediation strategies
-- **Predictive Maintenance**: Proactive issue prevention
+## Canonical Example
 
-#### 📁 `/zero-trust-compliance/`
-- **Zero Trust Architecture**: Scripts aligned with Zero Trust principles
-- **Conditional Access**: Enhanced device compliance verification
-- **Identity Verification**: Multi-factor authentication enforcement
+Here's a complete detection and remediation pair demonstrating proper structure:
 
-#### 📁 `/cloud-native-tools/`
-- **Azure Integration**: Deep integration with Azure services
-- **Graph API Utilities**: Microsoft Graph-powered automation
-- **Cloud-First Approach**: Modern cloud-native remediation patterns
+### Detection Script (detect-example.ps1)
+```powershell
+[CmdletBinding()]
+param()
 
-#### 📁 `/copilot-integration/`
-- **Microsoft Copilot**: AI-assisted script generation
-- **Natural Language Processing**: Human-readable configuration management
-- **Automated Documentation**: Self-documenting remediation processes
+try {
+    $condition = Get-SomeCondition
+    if ($condition) {
+        Write-Information "Issue detected" -InformationAction Continue
+        exit 1  # Issue found - remediation needed
+    } else {
+        Write-Information "No issues found" -InformationAction Continue
+        exit 0  # Compliant - no remediation needed
+    }
+} catch {
+    Write-Error "Detection failed: $_"
+    exit 1
+}
+```
 
-#### 📁 `/sustainability-focused/`
-- **Green IT**: Energy-efficient computing optimizations
-- **Carbon Footprint**: Device power management and efficiency
-- **Sustainable Operations**: Environmentally conscious IT practices
+### Remediation Script (remediate-example.ps1)
+```powershell
+[CmdletBinding(SupportsShouldProcess=$true)]
+param()
 
-#### 📁 `/quantum-ready/`
-- **Post-Quantum Cryptography**: Future-proof security implementations
-- **Quantum-Safe Algorithms**: Next-generation encryption standards
-- **Security Transition**: Migration strategies for quantum computing era
+try {
+    if ($PSCmdlet.ShouldProcess("System", "Apply Remediation")) {
+        # Apply fix here
+        Write-Information "Remediation applied successfully" -InformationAction Continue
+        exit 0  # Success
+    }
+} catch {
+    Write-Error "Remediation failed: $_"
+    exit 1  # Failure
+}
+```
 
-### Modern Features Added in 2025
+### Usage in Intune
+1. Create new Remediation in Intune admin center
+2. Upload detection script, set to run in system context
+3. Upload remediation script, configure schedule
+4. Assign to device groups and monitor results
 
-#### 🤖 AI-Enhanced Capabilities
-- **Intelligent Script Selection**: AI recommends optimal remediation scripts
-- **Automated Testing**: AI-powered script validation and testing
-- **Smart Rollback**: Intelligent failure recovery mechanisms
+## Directory Map
 
-#### 🔒 Advanced Security Features
-- **Zero Trust Validation**: Comprehensive trust verification at every step
-- **Behavioral Analysis**: Anomaly detection and response
-- **Quantum-Resistant Encryption**: Future-proof security implementations
+- **detection-scripts/**: Device and software compliance detection scripts
+- **remediation-scripts/**: Corresponding remediation scripts for detected issues
+- **security-management/**: Security baseline and vulnerability remediation tools
+- **compliance-reporting/**: Compliance status reporting and analytics
+- **browser-password-management/**: Browser security and password policy enforcement
+- **device-lifecycle/**: Device provisioning, maintenance, and retirement scripts
+- **graph-api-scripts/**: Microsoft Graph API integration and reporting tools
+- **network-automation/**: Network connectivity and configuration management
+- **performance-monitoring/**: System performance analysis and optimization
+- **modern-automation/**: PowerShell 7 and cross-platform automation capabilities
+- **docs/**: Comprehensive documentation and deployment guides
+- **docs/examples/**: Sample implementations and import templates
 
-#### ☁️ Cloud-Native Architecture
-- **Serverless Execution**: Azure Functions-based remediation
-- **Container Support**: Kubernetes and Docker integration
-- **Microservices Pattern**: Modular, scalable remediation services
+## CI/Quality
 
-#### 📊 Enhanced Monitoring & Analytics
-- **Real-time Dashboards**: Live remediation status monitoring
-- **Predictive Analytics**: Proactive issue identification
-- **Performance Metrics**: Comprehensive remediation effectiveness tracking
+Our continuous integration pipeline ensures code quality through:
 
-#### 🌱 Sustainability & Efficiency
-- **Green Computing**: Energy-efficient script execution
-- **Resource Optimization**: Minimal system impact design
-- **Carbon Tracking**: Environmental impact monitoring
+- **PowerShell Script Analyzer**: Automated linting and best practice validation
+- **Link Validation**: Automated checking of documentation links
+- **Security Scanning**: CodeQL analysis for security vulnerabilities
+- **Testing**: Automated validation of script syntax and functionality
 
-### Getting Started with 2025 Features
+All scripts follow PowerShell best practices:
+- Support for `-WhatIf` and `ShouldProcess` where applicable
+- Standardized error handling and logging
+- Proper exit codes for Intune integration
+- Security-conscious design (no Set-ExecutionPolicy usage)
 
-1. **Explore AI-Assisted Tools**: Start with `/ai-assisted-remediation/` for intelligent diagnostics
-2. **Implement Zero Trust**: Use `/zero-trust-compliance/` for modern security frameworks
-3. **Leverage Cloud Services**: Deploy `/cloud-native-tools/` for scalable solutions
-4. **Integrate Copilot**: Utilize `/copilot-integration/` for AI-powered automation
-5. **Go Green**: Implement `/sustainability-focused/` scripts for eco-friendly IT
-6. **Future-Proof Security**: Prepare with `/quantum-ready/` cryptographic solutions
+## Contribution/Support
 
-### 2025 Compatibility
-- **Windows 11 24H2+**: Full support for latest Windows features
-- **PowerShell 7.4+**: Modern PowerShell capabilities
-- **Intune Suite**: Complete integration with Microsoft Intune Suite
-- **Azure AD Premium P2**: Enhanced identity and access management
-- **Microsoft 365 E5**: Full feature compatibility
+### Contributing
+- 📖 Read our [Contributing Guidelines](CONTRIBUTING.md)
+- 🐛 Report issues via [GitHub Issues](https://github.com/a-ariff/intune-remediation-scripts/issues)
+- 💡 Submit feature requests and improvements
+- 🔀 Create pull requests following our guidelines
+
+### Support
+- 📚 Browse our [comprehensive documentation](docs/)
+- 🛠️ Check the [troubleshooting guide](docs/troubleshooting.md)
+- 🔐 Review our [security policy](SECURITY.md)
+- ⭐ Star this repo if you find it helpful!
+
+### Community
+- Follow [@a-ariff](https://github.com/a-ariff) for updates
+- Join discussions in our [GitHub Discussions](https://github.com/a-ariff/intune-remediation-scripts/discussions)
+- Share your use cases and improvements
 
 ---
 
-*Last Updated: August 2025 | Version 3.0 | AI-Enhanced Enterprise Edition*
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+**Made with ❤️ for the IT community**

@@ -1,0 +1,19 @@
+Browser,Version Support,Policy Type,Configuration Method,Platform,Notes
+Safari,14.0+,Managed Preferences,/usr/bin/defaults,macOS,Native macOS integration
+Chrome,90.0+,Enterprise Policy,JSON Configuration,Windows/macOS/Linux,Requires Google Chrome Enterprise
+Firefox,88.0+,Policy JSON,policies.json,Windows/macOS/Linux,Mozilla Policy Engine
+Edge,90.0+,Enterprise Policy,Registry/Plist,Windows/macOS,Microsoft Edge for Business
+Brave,1.26+,Chromium Policy,JSON Configuration,Windows/macOS/Linux,Based on Chromium policy engine
+Opera,76.0+,Enterprise Policy,JSON Configuration,Windows/macOS/Linux,Limited enterprise features
+Safari,14.0+,Settings Catalog,Intune Configuration Profile,macOS,AutoFillPasswords = false
+Chrome,90.0+,Settings Catalog,Intune Configuration Profile,Windows/macOS,PasswordManagerEnabled = false
+Firefox,88.0+,Settings Catalog,Intune Configuration Profile,Windows/macOS/Linux,PasswordManagerEnabled = false
+Edge,90.0+,Settings Catalog,Intune Configuration Profile,Windows/macOS,PasswordManagerEnabled = false
+Safari,14.0+,PowerShell Script,Deploy-MacOSBrowserPasswordPolicy.ps1,macOS,Set-SafariPasswordPolicy function
+Chrome,90.0+,PowerShell Script,Deploy-MacOSBrowserPasswordPolicy.ps1,macOS,Set-ChromePasswordPolicy function
+Firefox,88.0+,PowerShell Script,Deploy-MacOSBrowserPasswordPolicy.ps1,macOS,Set-FirefoxPasswordPolicy function
+Edge,90.0+,PowerShell Script,Deploy-MacOSBrowserPasswordPolicy.ps1,macOS,Set-EdgePasswordPolicy function
+Safari,14.0+,Bash Script,disable-browser-passwords-macos.sh,macOS,defaults write commands
+Chrome,90.0+,Bash Script,disable-browser-passwords-macos.sh,macOS,JSON policy file creation
+Firefox,88.0+,Bash Script,disable-browser-passwords-macos.sh,macOS,policies.json configuration
+Edge,90.0+,Bash Script,disable-browser-passwords-macos.sh,macOS,Plist configuration

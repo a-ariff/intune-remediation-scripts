@@ -1,0 +1,311 @@
+name: Enterprise Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly security scan every Monday at 2 AM
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  security-analysis:
+    name: Multi-Tool Security Analysis
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tool: codeql
+            language: powershell
+          - tool: semgrep
+            config: auto
+          - tool: trivy
+            scan-type: fs
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    # CodeQL Analysis
+    - name: Initialize CodeQL
+      if: matrix.tool == 'codeql'
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        config-file: ./.github/codeql/codeql-config.yml
+        queries: +security-extended,security-and-quality
+
+    - name: Perform CodeQL Analysis
+      if: matrix.tool == 'codeql'
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+        upload: true
+        output: codeql-results
+
+    # Semgrep Analysis
+    - name: Run Semgrep
+      if: matrix.tool == 'semgrep'
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: >
+          p/security-audit
+          p/secrets
+          p/owasp-top-ten
+          p/command-injection
+          p/powershell
+        generateSarif: "1"
+        publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
+      env:
+        SEMGREP_RULES: |
+          rules:
+            - id: powershell-execution-policy
+              patterns:
+                - pattern: Set-ExecutionPolicy
+              message: "Avoid Set-ExecutionPolicy in production scripts"
+              languages: [powershell]
+              severity: WARNING
+            - id: hardcoded-credentials
+              patterns:
+                - pattern: "$password = '*'"
+                - pattern: "$secret = '*'"
+              message: "Hardcoded credentials detected"
+              languages: [powershell]
+              severity: ERROR
+
+    # Trivy Vulnerability Scan
+    - name: Run Trivy vulnerability scanner
+      if: matrix.tool == 'trivy'
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH,MEDIUM'
+        security-checks: 'vuln,secret,config'
+        skip-dirs: '.git,node_modules'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      if: matrix.tool == 'trivy'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+        category: 'trivy'
+
+  powershell-security:
+    name: PowerShell Security Analysis
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install PSScriptAnalyzer
+      shell: powershell
+      run: |
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+        Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+        Install-Module -Name Pester -Force -Scope CurrentUser
+
+    - name: Run PowerShell Security Rules
+      shell: powershell
+      run: |
+        $securityRules = @(
+          'PSAvoidUsingCmdletAliases',
+          'PSAvoidUsingPositionalParameters',
+          'PSAvoidUsingPlainTextForPassword',
+          'PSAvoidUsingUsernameAndPasswordParams',
+          'PSAvoidUsingConvertToSecureStringWithPlainText',
+          'PSAvoidGlobalVars',
+          'PSUseCmdletCorrectly',
+          'PSUseConsistentIndentation',
+          'PSUseConsistentWhitespace',
+          'PSAvoidUsingInvokeExpression',
+          'PSAvoidUsingWriteHost'
+        )
+        
+        $results = Get-ChildItem -Path . -Include *.ps1, *.psm1, *.psd1 -Recurse | 
+          ForEach-Object {
+            Invoke-ScriptAnalyzer -Path $_.FullName -IncludeRule $securityRules -Severity @('Error', 'Warning', 'Information')
+          }
+        
+        if ($results) {
+          $results | Format-Table -AutoSize
+          $errorCount = ($results | Where-Object Severity -eq 'Error').Count
+          $warningCount = ($results | Where-Object Severity -eq 'Warning').Count
+          
+          Write-Output "::notice::PowerShell Analysis: $errorCount errors, $warningCount warnings"
+          
+          # Export results for upload
+          $results | ConvertTo-Json -Depth 3 | Out-File -FilePath 'pssa-results.json'
+          
+          if ($errorCount -gt 0) {
+            Write-Output "::error::PowerShell security analysis found $errorCount critical issues"
+            exit 1
+          }
+        } else {
+          Write-Output "::notice::No PowerShell security issues found"
+        }
+
+    - name: Upload PowerShell Analysis Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: powershell-security-analysis
+        path: pssa-results.json
+        retention-days: 30
+
+  devsecops-scan:
+    name: DevSecOps Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Run Microsoft DevSkim
+      uses: microsoft/devskim-action@v1
+      with:
+        directory-to-scan: .
+        output-filename: devskim-results.sarif
+        output-format: sarif
+
+    - name: Upload DevSkim results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: devskim-results.sarif
+        category: 'devskim'
+
+    - name: Secret Detection with TruffleHog
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified
+
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v4
+      with:
+        fail-on-severity: critical
+        allow-licenses: MIT, Apache-2.0, BSD-3-Clause, ISC
+        deny-licenses: GPL-2.0, GPL-3.0
+
+  compliance-check:
+    name: Security Compliance Check
+    runs-on: ubuntu-latest
+    needs: [security-analysis, powershell-security, devsecops-scan]
+    if: always()
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Security Policy Compliance
+      run: |
+        echo "::group::Security Compliance Verification"
+        
+        # Check for required security files
+        security_files=(
+          "SECURITY.md"
+          "CODEOWNERS"
+          ".github/dependabot.yml"
+          ".github/workflows/security.yml"
+        )
+        
+        missing_files=()
+        for file in "${security_files[@]}"; do
+          if [[ ! -f "$file" && ! -f ".github/$file" && ! -f "$file" ]]; then
+            missing_files+=("$file")
+          fi
+        done
+        
+        if [[ ${#missing_files[@]} -gt 0 ]]; then
+          echo "::warning::Missing security files: ${missing_files[*]}"
+        else
+          echo "::notice::All required security files present"
+        fi
+        
+        # Check PowerShell script compliance
+        find . -name "*.ps1" -type f | while read -r script; do
+          if grep -q "Set-ExecutionPolicy" "$script"; then
+            echo "::error::Security violation in $script: Set-ExecutionPolicy usage detected"
+          fi
+          
+          if grep -q "Invoke-Expression" "$script"; then
+            echo "::warning::Potential security risk in $script: Invoke-Expression usage"
+          fi
+          
+          if grep -E '\$password\s*=\s*["\'][^"\']["\']' "$script"; then
+            echo "::error::Security violation in $script: Hardcoded password detected"
+          fi
+        done
+        
+        echo "::endgroup::"
+
+    - name: Generate Security Summary
+      run: |
+        echo "# 🛡️ Enterprise Security Scan Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Scan Overview" >> $GITHUB_STEP_SUMMARY
+        echo "- **Repository**: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Triggered by**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Scan Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "## Security Tools Executed" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **CodeQL**: Advanced semantic analysis" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Semgrep**: Pattern-based security detection" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Trivy**: Vulnerability and misconfiguration scanning" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **DevSkim**: Microsoft security rule engine" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **PSScriptAnalyzer**: PowerShell security analysis" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **TruffleHog**: Secret detection" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ **Dependency Review**: Supply chain security" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "## Security Status" >> $GITHUB_STEP_SUMMARY
+        if [[ "${{ needs.security-analysis.result }}" == "success" && "${{ needs.powershell-security.result }}" == "success" && "${{ needs.devsecops-scan.result }}" == "success" ]]; then
+          echo "🟢 **All security scans passed successfully!**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "🔴 **Some security scans reported issues. Please review the detailed results.**" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Next Steps" >> $GITHUB_STEP_SUMMARY
+        echo "1. Review security findings in the [Security tab](https://github.com/${{ github.repository }}/security)" >> $GITHUB_STEP_SUMMARY
+        echo "2. Address any critical or high-severity issues" >> $GITHUB_STEP_SUMMARY
+        echo "3. Update security policies as needed" >> $GITHUB_STEP_SUMMARY
+        echo "4. Monitor security advisories for dependencies" >> $GITHUB_STEP_SUMMARY
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "*Enterprise Security Scan completed at $(date -u +'%Y-%m-%d %H:%M:%S UTC')*" >> $GITHUB_STEP_SUMMARY
+
+  notification:
+    name: Security Notification
+    runs-on: ubuntu-latest
+    needs: [compliance-check]
+    if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
+    
+    steps:
+    - name: Notify Security Team
+      run: |
+        echo "::warning::Security scan detected issues in ${{ github.repository }}"
+        echo "::notice::Review security findings and take appropriate action"
+        # Add additional notification logic here (Slack, Teams, email, etc.)

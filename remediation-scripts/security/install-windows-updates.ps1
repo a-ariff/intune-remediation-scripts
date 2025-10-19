@@ -7,8 +7,8 @@ param(
     [switch]$WhatIf = $false
 )
 
-# Set execution policy temporarily for script execution
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
+## Removed execution policy change - script runs under default policy
+S#et-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
 
 # Import required modules
 try {

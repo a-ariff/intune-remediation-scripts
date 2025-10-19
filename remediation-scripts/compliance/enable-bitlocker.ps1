@@ -8,7 +8,7 @@ param(
 )
 
 # Set execution policy temporarily for script execution
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
+# Removed execution policy - script runs under default policy
 
 # Import required modules
 try {

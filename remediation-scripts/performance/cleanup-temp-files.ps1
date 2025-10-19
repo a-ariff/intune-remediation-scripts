@@ -218,7 +218,7 @@ function Get-DiskSpaceInfo {
             FreeSpacePercent = [math]::Round(($disk.FreeSpace / $disk.Size) * 100, 2)
         }
     } catch {
-        Write-Warning "Failed to get disk space information for $Drive: $($_.Exception.Message)"
+                Write-Warning ("Failed to get disk space information for drive {0}: {1}" -f $Drive, $_.Exception.Message)
         return $null
     }
 }

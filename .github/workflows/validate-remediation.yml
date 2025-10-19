@@ -1,0 +1,26 @@
+name: Validate Remediation Scripts
+
+on:
+  pull_request:
+    paths:
+      - 'remediation-scripts/**/*.ps1'
+      - '.github/workflows/validate-remediation.yml'
+  push:
+    paths:
+      - 'remediation-scripts/**/*.ps1'
+      - '.github/workflows/validate-remediation.yml'
+
+jobs:
+  check-execution-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Search for Set-ExecutionPolicy
+        run: |
+          if grep -Riq 'Set-ExecutionPolicy' remediation-scripts; then
+            echo 'Set-ExecutionPolicy usage detected. Please remove or comment it out to follow best practices.'
+            exit 1
+          else
+            echo 'No Set-ExecutionPolicy usage found.'
+          fi

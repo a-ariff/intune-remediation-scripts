@@ -10,8 +10,8 @@ param(
     [string[]]$ExcludePackage = @()
 )
 
-# Set execution policy temporarily for script execution
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
+## Removed execution policy change - script runs under default policy
+S#et-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
 
 # Function to check if Winget is available
 function Test-WingetAvailability {

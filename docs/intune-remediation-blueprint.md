@@ -68,6 +68,55 @@ try {
 
 See the existing folders in `remediation-scripts` for real-world examples such as:
 - **performance-monitoring/cleanup-temp-files.ps1** – cleans up temporary files.
-- **security-management/Deploy-SecurityBaseline.ps1** – configures security settings.
+- **security-management/Deploy-SecurityBaseline.ps1** – configures baseline security settings.
 
 Feel free to adapt and expand this blueprint to suit your organization's requirements.
+
+## Service Remediation Example: W32Time
+
+This example shows how to remediate the Windows Time (W32Time) service when it is disabled or stopped. The detection script checks if the service is running and set to Automatic (or Automatic (Delayed Start)). If not, it signals remediation by exiting with code 1. The remediation script configures the service to start automatically and then starts it.
+
+### Detection script (detection.ps1)
+
+```powershell
+# Detect if the Windows Time service is running and set to Automatic or Automatic (Delayed Start)
+$service = Get-Service -Name W32Time -ErrorAction SilentlyContinue
+
+if ($null -eq $service) {
+    Write-Output "W32Time service not installed"
+    exit 1
+}
+
+if ($service.Status -ne 'Running' -or $service.StartType -notin @('Automatic', 'AutomaticDelayedStart')) {
+    Write-Output "W32Time service requires remediation. Status: $($service.Status), StartType: $($service.StartType)"
+    exit 1
+} else {
+    Write-Output "W32Time service is running with the correct start type"
+    exit 0
+}
+```
+
+### Remediation script (remediation.ps1)
+
+```powershell
+# Configure and start the Windows Time service
+try {
+    Write-Output "Configuring W32Time service..."
+    Set-Service -Name W32Time -StartupType Automatic
+    Write-Output "Starting W32Time service..."
+    Start-Service -Name W32Time
+    Write-Output "W32Time service configured and started successfully"
+    exit 0
+} catch {
+    Write-Error "Failed to remediate W32Time service: $_"
+    exit 1
+}
+```
+
+### Packaging and deployment for this example
+
+1. Create a folder named `w32time-service` in the `remediation-scripts` directory.
+2. Save the detection script above as `detection.ps1` and the remediation script as `remediation.ps1` inside this folder.
+3. Add a `README.md` describing the purpose of this remediation (keeping the Windows Time service running and set to Automatic).
+4. In Intune, create a remediation package using these scripts and assign it to the desired device group.
+5. Monitor the remediation status via Intune reports.

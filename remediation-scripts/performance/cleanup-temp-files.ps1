@@ -9,10 +9,8 @@ param(
     [switch]$IncludeRecycleBin = $false
 )
 
-# Set execution policy temporarily for script execution
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
-
-# Define temp directories to clean
+#  Removed execution policy change - script runs under default policy
+-# Define temp directories to clean
 $TempDirectories = @(
     $env:TEMP,
     $env:TMP,

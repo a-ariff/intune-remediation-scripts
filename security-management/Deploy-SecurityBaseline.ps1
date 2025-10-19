@@ -147,12 +147,8 @@ function Set-PowerShellSecurityConfiguration {
         Write-Log "Configuring PowerShell security settings..."
         
         try {
-            # Set execution policy to RemoteSigned
-            Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force
-            Write-Log "PowerShell execution policy set to RemoteSigned" "SUCCESS"
-            
-            # Enable PowerShell logging
-            $registryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ModuleLogging"
+            ## Execution policy managed externally; no changes necessary
+        
             if (-not (Test-Path $registryPath)) {
                 New-Item -Path $registryPath -Force | Out-Null
             }

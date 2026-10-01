@@ -7,6 +7,8 @@
     Exports results to CSV format for analysis and reporting.
 .PARAMETER TenantId
     Azure AD Tenant ID
+.PARAMETER UseManagedIdentity
+    Switch to authenticate via Azure Managed Identity (No secrets required)
 .PARAMETER ClientId
     Azure AD Application (Client) ID with appropriate Graph permissions
 .PARAMETER CertificateThumbprint
